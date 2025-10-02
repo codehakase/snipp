@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snipp Toast</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+      background: transparent;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .toast {
+      background: rgba(50, 50, 50, 0.95);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 14px 18px;
+      min-width: 280px;
+      box-shadow: 
+        0 8px 32px rgba(0, 0, 0, 0.4),
+        0 2px 8px rgba(0, 0, 0, 0.2);
+      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity: 0;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    .toast-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .toast-icon {
+      width: 24px;
+      height: 24px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .toast-icon::after {
+      content: '✓';
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .toast-text {
+      color: rgba(255, 255, 255, 0.95);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      line-height: 1.4;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-12px) scale(0.95);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    .toast.dismissing {
+      animation: slideOut 0.2s cubic-bezier(0.4, 0, 1, 1) forwards;
+    }
+
+    @keyframes slideOut {
+      to {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.98);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toast" id="toast">
+    <div class="toast-content">
+      <div class="toast-icon"></div>
+      <div class="toast-text">Screenshot captured</div>
+    </div>
+  </div>
+
+  <script>
+    const { listen } = window.__TAURI__.event;
+    const { getCurrentWindow } = window.__TAURI__.window;
+
+    const toast = document.getElementById('toast');
+    const currentWindow = getCurrentWindow();
+
+    // Position window in top-right corner
+    const setupWindow = async () => {
+      try {
+        const primaryMonitor = await currentWindow.primaryMonitor();
+        if (primaryMonitor) {
+          const { width: screenWidth, height: screenHeight } = primaryMonitor.size;
+          const margin = 16;
+          await currentWindow.setPosition({
+            x: screenWidth - 320 - margin,
+            y: margin
+          });
+        }
+      } catch (error) {
+        console.error('Failed to setup window position:', error);
+      }
+    };
+
+    const showToast = () => {
+      currentWindow.show();
+      toast.classList.add('show');
+      
+      setTimeout(() => {
+        toast.classList.add('dismissing');
+        setTimeout(() => {
+          currentWindow.hide();
+          toast.classList.remove('show', 'dismissing');
+        }, 200);
+      }, 2000);
+    };
+
+    // Listen for screenshot-captured events
+    listen('screenshot-captured', (event) => {
+      console.log('Screenshot captured:', event.payload);
+      showToast();
+    });
+
+    // Setup window position on load
+    setupWindow();
+  </script>
+</body>
+</html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Snipp - Screenshot Tool</title>
+    <script type="module" src="/main.js" defer></script>
+  </head>
+
+  <body>
+    <main class="container">
+      <h1>📸 Snipp</h1>
+      <p><strong>Screenshot Tool for macOS</strong></p>
+      
+      <div class="status" id="status">
+        <p>🔄 Initializing...</p>
+      </div>
+
+      <div class="instructions">
+        <h3>How to use:</h3>
+        <ol>
+          <li>Press <kbd>⌘⇧2</kbd> anywhere on your system</li>
+          <li>Drag to select screenshot area</li>
+          <li>Screenshot will be saved to Desktop</li>
+          <li>Toast notification will confirm capture</li>
+        </ol>
+      </div>
+
+      <div class="controls">
+        <button id="test-screenshot">Test Screenshot</button>
+        <button id="hide-window">Hide Window</button>
+      </div>
+
+      <div class="info" id="info">
+        <p><small>Press the global hotkey or use the test button above</small></p>
+      </div>
+    </main>
+
+    <style>
+      .status {
+        background: #f0f8ff;
+        border: 1px solid #007acc;
+        border-radius: 8px;
+        padding: 12px;
+        margin: 16px 0;
+        text-align: center;
+      }
+      
+      .status.ready {
+        background: #f0fff0;
+        border-color: #28a745;
+      }
+      
+      .status.error {
+        background: #fff5f5;
+        border-color: #dc3545;
+      }
+      
+      .instructions {
+        margin: 20px 0;
+      }
+      
+      .instructions ol {
+        text-align: left;
+        margin-left: 20px;
+      }
+      
+      .controls {
+        margin: 20px 0;
+      }
+      
+      .controls button {
+        margin: 5px;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        background: #007acc;
+        color: white;
+        cursor: pointer;
+      }
+      
+      .controls button:hover {
+        background: #005a9e;
+      }
+      
+      kbd {
+        background: #f4f4f4;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        padding: 2px 4px;
+        font-family: monospace;
+      }
+      
+      .info {
+        margin-top: 20px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 5px;
+      }
+    </style>
+  </body>
+</html>

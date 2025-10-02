@@ -1,0 +1,62 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Snipp",
+  "version": "0.1.0",
+  "identifier": "com.ops.snipp",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Snipp",
+        "width": 400,
+        "height": 300,
+        "visible": true,
+        "center": true
+      },
+      {
+        "label": "toast",
+        "title": "Toast",
+        "width": 320,
+        "height": 80,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "resizable": false,
+        "minimizable": false,
+        "maximizable": false,
+        "closable": false,
+        "url": "toast.html"
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default", "toast"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": null,
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null
+    }
+  },
+  "plugins": {}
+}
