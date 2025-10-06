@@ -109,7 +109,7 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
         WebviewUrl::App("popup.html".into())
     )
     .title("Screenshot Captured")
-    .inner_size(320.0, 300.0)
+    .inner_size(320.0, 320.0)
     .decorations(false)
     .transparent(true)
     .always_on_top(true)
@@ -122,9 +122,30 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
     
     println!("Popup window created successfully");
     
-    // Position the popup near cursor with bounds checking
-    let x = cursor_pos.0.max(0.0).min(1920.0 - 320.0); // Basic bounds check
-    let y = (cursor_pos.1 + 40.0).max(0.0).min(1080.0 - 300.0);
+    // Position the popup near cursor with smart bounds checking
+    let popup_width = 320.0;
+    let popup_height = 320.0; // Ensure buttons are visible
+    let margin = 10.0; // Margin from screen edges
+    
+    // Try to place popup to the right and below cursor first
+    let mut x = cursor_pos.0 + 20.0;
+    let mut y = cursor_pos.1 + 20.0;
+    
+    // If popup would go off right edge, place it to the left of cursor
+    if x + popup_width > 2560.0 - margin {
+        x = cursor_pos.0 - popup_width - 20.0;
+    }
+    
+    // If popup would go off bottom edge, place it above cursor
+    if y + popup_height > 1440.0 - margin {
+        y = cursor_pos.1 - popup_height - 20.0;
+    }
+    
+    // Ensure popup doesn't go off left or top edges
+    x = x.max(margin);
+    y = y.max(margin);
+    
+    println!("Final popup position: x={}, y={} (cursor was at {}, {})", x, y, cursor_pos.0, cursor_pos.1);
     
     popup_window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: y as i32 }))
         .map_err(|e| format!("Failed to position popup: {}", e))?;
@@ -164,6 +185,7 @@ fn get_cursor_position() -> (f64, f64) {
     // Fallback for non-macOS platforms
     (600.0, 400.0)
 }
+
 
 #[tauri::command]
 async fn copy_to_clipboard(
