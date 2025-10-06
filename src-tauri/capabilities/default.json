@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": ["main", "popup", "preferences"],
   "permissions": [
     "core:default",
     "opener:default",
@@ -11,6 +11,13 @@
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-unregister-all",
     "global-shortcut:allow-is-registered",
-    "shell:allow-execute"
+    "shell:allow-execute",
+    "clipboard-manager:allow-read-image",
+    "clipboard-manager:allow-write-image",
+    "fs:allow-read-file",
+    "fs:allow-remove",
+    "fs:allow-create",
+    "fs:allow-write-file",
+    "dialog:allow-open"
   ]
 }

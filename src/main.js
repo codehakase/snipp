@@ -27,7 +27,7 @@ async function captureScreenshot() {
     
     if (statusEl && infoEl) {
       updateStatus('✅ Screenshot captured successfully!', 'ready');
-      updateInfo(`📁 Saved to: ${result}`);
+      updateInfo(`📁 Saved to: ${result.file_path}`);
       
       // Reset status after 3 seconds
       setTimeout(() => {
@@ -45,29 +45,52 @@ async function captureScreenshot() {
   }
 }
 
+async function openPreferences() {
+  try {
+    await invoke('open_preferences_window');
+  } catch (error) {
+    console.error('Failed to open preferences:', error);
+  }
+}
+
 // Global shortcut registration
 window.addEventListener("DOMContentLoaded", async () => {
-  updateStatus('🔄 Registering global shortcut...', 'info');
+  updateStatus('🔄 Registering global shortcuts...', 'info');
   
   try {
-    // Register the global shortcut for Cmd+Shift+2
-    await register('Command+Shift+2', captureScreenshot);
+    // Load configuration to get current hotkeys
+    let config;
+    try {
+      config = await invoke('get_config');
+    } catch (error) {
+      console.log('Using default config');
+      config = {
+        capture_hotkey: 'CommandOrControl+Shift+2',
+        preferences_hotkey: 'CommandOrControl+Comma'
+      };
+    }
     
-    console.log('Global shortcut registered: Command+Shift+2');
+    // Register the global shortcuts
+    await register(config.capture_hotkey, captureScreenshot);
+    await register(config.preferences_hotkey, openPreferences);
+    
+    console.log('Global shortcuts registered:', config.capture_hotkey, config.preferences_hotkey);
     updateStatus('🟢 Ready - Press ⌘⇧2 or use test button', 'ready');
-    updateInfo('Global shortcut ⌘⇧2 is active!');
+    updateInfo('Global shortcuts are active! ⌘⇧2 for capture, ⌘, for preferences');
     
   } catch (error) {
-    console.error('Failed to register global shortcut:', error);
-    updateStatus(`❌ Failed to register shortcut: ${error}`, 'error');
+    console.error('Failed to register global shortcuts:', error);
+    updateStatus(`❌ Failed to register shortcuts: ${error}`, 'error');
     updateInfo('Check Accessibility permissions in System Preferences');
   }
 
   // Setup UI event handlers
   const testButton = document.getElementById('test-screenshot');
+  const preferencesButton = document.getElementById('preferences-btn');
   const hideButton = document.getElementById('hide-window');
   
   testButton.addEventListener('click', captureScreenshot);
+  preferencesButton.addEventListener('click', openPreferences);
   
   hideButton.addEventListener('click', async () => {
     const currentWindow = getCurrentWindow();

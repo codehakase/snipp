@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snipp - Preferences</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+      background: #FAFAFA;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .preferences-window {
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .section {
+      margin-bottom: 28px;
+    }
+
+    .section:last-child {
+      margin-bottom: 0;
+    }
+
+    .section-header {
+      font-size: 15px;
+      font-weight: 600;
+      color: rgba(0, 0, 0, 0.85);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding: 8px 0;
+    }
+
+    .setting-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .setting-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(0, 0, 0, 0.75);
+      flex: 0 0 auto;
+    }
+
+    .setting-control {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 1;
+      justify-content: flex-end;
+    }
+
+    .input-field {
+      height: 28px;
+      padding: 0 10px;
+      border: 1px solid rgba(0, 0, 0, 0.15);
+      border-radius: 6px;
+      background: white;
+      font-size: 12px;
+      font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+      color: rgba(0, 0, 0, 0.85);
+      transition: all 0.15s ease;
+      width: 240px;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: #007AFF;
+      box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+    }
+
+    .hotkey-input {
+      width: 180px;
+      text-align: center;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-small {
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+      background: white;
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(0, 0, 0, 0.75);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    }
+
+    .btn-small:hover {
+      background: rgba(0, 0, 0, 0.04);
+      border-color: rgba(0, 0, 0, 0.18);
+    }
+
+    .btn-small:active {
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    .footer-actions {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .btn {
+      height: 32px;
+      padding: 0 20px;
+      border-radius: 6px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    }
+
+    .btn-secondary {
+      background: rgba(0, 0, 0, 0.04);
+      color: rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(0, 0, 0, 0.08);
+      border-color: rgba(0, 0, 0, 0.12);
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, #007AFF 0%, #0051D5 100%);
+      color: white;
+      box-shadow: 0 1px 3px rgba(0, 122, 255, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(180deg, #0051D5 0%, #003DA5 100%);
+      box-shadow: 0 2px 6px rgba(0, 122, 255, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0, 122, 255, 0.3);
+    }
+
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #2D2D2D;
+      }
+
+      .section-header {
+        color: rgba(255, 255, 255, 0.9);
+        border-bottom-color: rgba(255, 255, 255, 0.08);
+      }
+
+      .setting-label {
+        color: rgba(255, 255, 255, 0.75);
+      }
+
+      .input-field {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      .input-field:focus {
+        border-color: #0A84FF;
+        box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.2);
+      }
+
+      .btn-small {
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.12);
+        color: rgba(255, 255, 255, 0.85);
+      }
+
+      .btn-small:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.18);
+      }
+
+      .footer-actions {
+        border-top-color: rgba(255, 255, 255, 0.08);
+      }
+
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.08);
+        color: rgba(255, 255, 255, 0.85);
+        border-color: rgba(255, 255, 255, 0.12);
+      }
+
+      .btn-secondary:hover {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.18);
+      }
+    }
+
+    .loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .success-feedback {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-top: 8px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="preferences-window">
+    <div class="section">
+      <div class="section-header">General</div>
+      <div class="setting-row">
+        <div class="setting-label">Default Save Location</div>
+        <div class="setting-control">
+          <input type="text" class="input-field" id="save-location" readonly>
+          <button class="btn-small" id="browse-btn">Browse...</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">Hotkeys</div>
+      <div class="setting-row">
+        <div class="setting-label">Capture Screenshot</div>
+        <div class="setting-control">
+          <input type="text" class="input-field hotkey-input" id="capture-hotkey" readonly>
+          <button class="btn-small" id="edit-capture-btn">Edit</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label">Open Preferences</div>
+        <div class="setting-control">
+          <input type="text" class="input-field hotkey-input" id="preferences-hotkey" readonly>
+          <button class="btn-small" id="edit-preferences-btn">Edit</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-actions">
+      <button class="btn btn-secondary" id="cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="save-btn">Save</button>
+    </div>
+
+    <div class="success-feedback" id="success-message">
+      Settings saved successfully!
+    </div>
+  </div>
+
+  <script>
+    const { invoke } = window.__TAURI__.core;
+
+    let originalConfig = null;
+    let currentConfig = null;
+    let isEditingHotkey = false;
+    let editingHotkeyField = null;
+
+    // Load current configuration
+    async function loadConfig() {
+      try {
+        const config = await invoke('get_config');
+        originalConfig = { ...config };
+        currentConfig = { ...config };
+        
+        updateUI(config);
+      } catch (error) {
+        console.error('Failed to load config:', error);
+      }
+    }
+
+    function updateUI(config) {
+      document.getElementById('save-location').value = config.default_save_location;
+      document.getElementById('capture-hotkey').value = formatHotkey(config.capture_hotkey);
+      document.getElementById('preferences-hotkey').value = formatHotkey(config.preferences_hotkey);
+    }
+
+    function formatHotkey(hotkey) {
+      // Convert from Tauri format to display format
+      return hotkey
+        .replace('CommandOrControl', '⌘')
+        .replace('Shift', '⇧')
+        .replace('Alt', '⌥')
+        .replace('Ctrl', '⌃')
+        .replace('+', ' ');
+    }
+
+    function parseHotkey(displayHotkey) {
+      // Convert from display format to Tauri format
+      return displayHotkey
+        .replace('⌘', 'CommandOrControl')
+        .replace('⇧', 'Shift')
+        .replace('⌥', 'Alt')
+        .replace('⌃', 'Ctrl')
+        .replace(/ /g, '+');
+    }
+
+    // Browse for save location
+    document.getElementById('browse-btn').addEventListener('click', async () => {
+      try {
+        const folder = await invoke('choose_save_location');
+        if (folder) {
+          document.getElementById('save-location').value = folder;
+          currentConfig.default_save_location = folder;
+        }
+      } catch (error) {
+        console.error('Failed to choose save location:', error);
+      }
+    });
+
+    // Hotkey editing
+    function startHotkeyEdit(fieldId, configKey) {
+      if (isEditingHotkey) return;
+      
+      isEditingHotkey = true;
+      editingHotkeyField = { fieldId, configKey };
+      
+      const field = document.getElementById(fieldId);
+      const editBtn = document.getElementById(fieldId.replace('-hotkey', '-btn'));
+      
+      field.value = 'Press keys...';
+      field.classList.add('loading');
+      editBtn.textContent = 'Listening...';
+      editBtn.disabled = true;
+      
+      // Focus the field to capture key events
+      field.focus();
+    }
+
+    function finishHotkeyEdit(newHotkey) {
+      if (!isEditingHotkey || !editingHotkeyField) return;
+      
+      const { fieldId, configKey } = editingHotkeyField;
+      const field = document.getElementById(fieldId);
+      const editBtn = document.getElementById(fieldId.replace('-hotkey', '-btn'));
+      
+      if (newHotkey) {
+        currentConfig[configKey] = parseHotkey(newHotkey);
+        field.value = newHotkey;
+      } else {
+        // Revert to original value
+        field.value = formatHotkey(currentConfig[configKey]);
+      }
+      
+      field.classList.remove('loading');
+      editBtn.textContent = 'Edit';
+      editBtn.disabled = false;
+      
+      isEditingHotkey = false;
+      editingHotkeyField = null;
+    }
+
+    // Key event handling for hotkey capture
+    document.addEventListener('keydown', (event) => {
+      if (!isEditingHotkey) return;
+      
+      event.preventDefault();
+      
+      if (event.key === 'Escape') {
+        finishHotkeyEdit(null);
+        return;
+      }
+      
+      const keys = [];
+      if (event.metaKey || event.ctrlKey) keys.push('⌘');
+      if (event.shiftKey) keys.push('⇧');
+      if (event.altKey) keys.push('⌥');
+      
+      // Add the main key (not modifier keys)
+      if (event.key !== 'Meta' && event.key !== 'Control' && 
+          event.key !== 'Shift' && event.key !== 'Alt') {
+        keys.push(event.key.toUpperCase());
+      }
+      
+      if (keys.length >= 2) { // At least one modifier + one key
+        const hotkey = keys.join(' ');
+        finishHotkeyEdit(hotkey);
+      }
+    });
+
+    // Edit button event listeners
+    document.getElementById('edit-capture-btn').addEventListener('click', () => {
+      startHotkeyEdit('capture-hotkey', 'capture_hotkey');
+    });
+
+    document.getElementById('edit-preferences-btn').addEventListener('click', () => {
+      startHotkeyEdit('preferences-hotkey', 'preferences_hotkey');
+    });
+
+    // Cancel button
+    document.getElementById('cancel-btn').addEventListener('click', async () => {
+      await invoke('close_preferences_window');
+    });
+
+    // Save button
+    document.getElementById('save-btn').addEventListener('click', async () => {
+      try {
+        await invoke('update_config', { newConfig: currentConfig });
+        
+        // Show success message
+        const successMsg = document.getElementById('success-message');
+        successMsg.style.display = 'block';
+        
+        setTimeout(async () => {
+          await invoke('close_preferences_window');
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Failed to save config:', error);
+        alert('Failed to save settings. Please try again.');
+      }
+    });
+
+    // Close on Escape key
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !isEditingHotkey) {
+        invoke('close_preferences_window');
+      }
+    });
+
+    // Load config on page load
+    loadConfig();
+  </script>
+</body>
+</html>
