@@ -16,7 +16,6 @@ function updateInfo(message) {
 
 async function captureScreenshot() {
   try {
-    // Only update UI if elements exist (when called from within the app window)
     if (statusEl && infoEl) {
       updateInfo('🔄 Taking screenshot...');
       updateStatus('📸 Capturing screenshot...', 'info');
@@ -29,7 +28,6 @@ async function captureScreenshot() {
       updateStatus('✅ Screenshot captured successfully!', 'ready');
       updateInfo(`📁 Saved to: ${result.file_path}`);
       
-      // Reset status after 3 seconds
       setTimeout(() => {
         updateStatus('🟢 Ready - Press ⌘⇧2 or use test button', 'ready');
         updateInfo('Press the global hotkey or use the test button above');
@@ -53,24 +51,21 @@ async function openPreferences() {
   }
 }
 
-// Global shortcut registration
 window.addEventListener("DOMContentLoaded", async () => {
   updateStatus('🔄 Registering global shortcuts...', 'info');
   
   try {
-    // Load configuration to get current hotkeys
     let config;
     try {
       config = await invoke('get_config');
     } catch (error) {
       console.log('Using default config');
       config = {
-        capture_hotkey: 'CommandOrControl+Shift+2',
-        preferences_hotkey: 'CommandOrControl+Comma'
+        capture_hotkey: 'Cmd+Shift+2',
+        preferences_hotkey: 'Cmd+Comma'
       };
     }
     
-    // Register the global shortcuts
     await register(config.capture_hotkey, captureScreenshot);
     await register(config.preferences_hotkey, openPreferences);
     
@@ -84,7 +79,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     updateInfo('Check Accessibility permissions in System Preferences');
   }
 
-  // Setup UI event handlers
   const testButton = document.getElementById('test-screenshot');
   const preferencesButton = document.getElementById('preferences-btn');
   const hideButton = document.getElementById('hide-window');

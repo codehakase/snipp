@@ -4,13 +4,13 @@ use tauri_plugin_dialog::DialogExt;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::collections::HashMap;
+use base64::prelude::*;
 
 #[cfg(target_os = "macos")]
 use cocoa::appkit::NSEvent;
 #[cfg(target_os = "macos")]
-use cocoa::foundation::{NSPoint, NSAutoreleasePool};
+use cocoa::foundation::NSAutoreleasePool;
 
-// Global storage for screenshot data in memory
 type ScreenshotCache = Mutex<HashMap<String, Vec<u8>>>;
 static SCREENSHOT_CACHE: std::sync::OnceLock<ScreenshotCache> = std::sync::OnceLock::new();
 
@@ -30,7 +30,7 @@ pub struct ScreenshotData {
 #[tauri::command]
 async fn capture_screenshot(
     app_handle: AppHandle,
-    config_state: State<'_, ConfigState>,
+    _config_state: State<'_, ConfigState>,
 ) -> Result<ScreenshotData, String> {
     println!("Starting memory-first screenshot capture...");
     
@@ -41,7 +41,6 @@ async fn capture_screenshot(
     
     let filename = format!("snipp-{}.png", timestamp);
     
-    // Capture screenshot to temporary file then read into memory
     let temp_path = std::env::temp_dir().join(format!("snipp_capture_{}.png", timestamp));
     
     let shell = app_handle.shell();
@@ -53,16 +52,13 @@ async fn capture_screenshot(
         .map_err(|e| format!("Failed to execute screencapture: {}", e))?;
     
     if !output.status.success() {
-        // Clean up temp file if command failed
         let _ = std::fs::remove_file(&temp_path);
         return Err("Screenshot capture was cancelled or failed".to_string());
     }
     
-    // Read the captured file into memory
     let image_data = std::fs::read(&temp_path)
         .map_err(|e| format!("Failed to read captured screenshot: {}", e))?;
     
-    // Clean up temp file
     let _ = std::fs::remove_file(&temp_path);
     
     if image_data.is_empty() {
@@ -71,10 +67,8 @@ async fn capture_screenshot(
     
     println!("Captured {} bytes of image data", image_data.len());
     
-    // Convert to base64 for web display
-    let base64_image = base64::encode(&image_data);
+    let base64_image = base64::prelude::BASE64_STANDARD.encode(&image_data);
     
-    // Store in memory cache for later operations
     let cache_key = timestamp.to_string();
     let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     {
@@ -90,7 +84,6 @@ async fn capture_screenshot(
         file_path: None, // Will be set when/if saved to disk
     };
     
-    // Show the popup window with image data
     show_popup_window(&app_handle, &screenshot_data).await?;
     
     Ok(screenshot_data)
@@ -99,7 +92,6 @@ async fn capture_screenshot(
 async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotData) -> Result<(), String> {
     println!("Creating popup window for screenshot: {}", screenshot_data.filename);
     
-    // Get cursor position for popup placement
     let cursor_pos = get_cursor_position();
     println!("Cursor position: {:?}", cursor_pos);
     
@@ -122,26 +114,34 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
     
     println!("Popup window created successfully");
     
-    // Position the popup near cursor with smart bounds checking
     let popup_width = 320.0;
-    let popup_height = 320.0; // Ensure buttons are visible
-    let margin = 10.0; // Margin from screen edges
+    let popup_height = 320.0;
+    let margin = 10.0;
+    let offset = 20.0;
     
-    // Try to place popup to the right and below cursor first
-    let mut x = cursor_pos.0 + 20.0;
-    let mut y = cursor_pos.1 + 20.0;
+    #[cfg(target_os = "macos")]
+    let (screen_width, screen_height) = unsafe {
+        let screen = cocoa::appkit::NSScreen::mainScreen(cocoa::base::nil);
+        let screen_frame = cocoa::appkit::NSScreen::frame(screen);
+        (screen_frame.size.width, screen_frame.size.height)
+    };
     
-    // If popup would go off right edge, place it to the left of cursor
-    if x + popup_width > 2560.0 - margin {
-        x = cursor_pos.0 - popup_width - 20.0;
+    #[cfg(not(target_os = "macos"))]
+    let (screen_width, screen_height) = (1920.0, 1080.0);
+    
+    println!("Screen dimensions: {}x{}", screen_width, screen_height);
+    
+    let mut x = cursor_pos.0 + offset;
+    let mut y = cursor_pos.1 + offset;
+    
+    if x + popup_width > screen_width - margin {
+        x = cursor_pos.0 - popup_width - offset;
     }
     
-    // If popup would go off bottom edge, place it above cursor
-    if y + popup_height > 1440.0 - margin {
-        y = cursor_pos.1 - popup_height - 20.0;
+    if y + popup_height > screen_height - margin {
+        y = cursor_pos.1 - popup_height - offset;
     }
     
-    // Ensure popup doesn't go off left or top edges
     x = x.max(margin);
     y = y.max(margin);
     
@@ -150,11 +150,9 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
     popup_window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: y as i32 }))
         .map_err(|e| format!("Failed to position popup: {}", e))?;
     
-    // Give the popup window time to load before emitting the event
     println!("Waiting 200ms for popup to load...");
     tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
     
-    // Send screenshot data directly to the popup
     println!("Emitting screenshot-data event to popup");
     popup_window.emit("screenshot-data", screenshot_data)
         .map_err(|e| format!("Failed to emit screenshot data: {}", e))?;
@@ -170,19 +168,16 @@ fn get_cursor_position() -> (f64, f64) {
         let _pool = NSAutoreleasePool::new(cocoa::base::nil);
         let mouse_location = NSEvent::mouseLocation(cocoa::base::nil);
         
-        // Get screen height to convert coordinate system
         let screen = cocoa::appkit::NSScreen::mainScreen(cocoa::base::nil);
         let screen_frame = cocoa::appkit::NSScreen::frame(screen);
         let screen_height = screen_frame.size.height;
         
-        // Convert from Cocoa coordinates (bottom-left origin) to screen coordinates (top-left origin)
         (mouse_location.x, screen_height - mouse_location.y)
     }
 }
 
 #[cfg(not(target_os = "macos"))]
 fn get_cursor_position() -> (f64, f64) {
-    // Fallback for non-macOS platforms
     (600.0, 400.0)
 }
 
@@ -194,7 +189,6 @@ async fn copy_to_clipboard(
 ) -> Result<(), String> {
     println!("Copying screenshot to clipboard from memory cache: {}", timestamp);
     
-    // Get image data from memory cache
     let cache_key = timestamp.to_string();
     let image_data = {
         let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
@@ -204,12 +198,10 @@ async fn copy_to_clipboard(
     
     let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
     
-    // Write image data to temporary file for clipboard operation
     let temp_path = std::env::temp_dir().join(format!("snipp_temp_{}.png", timestamp));
     std::fs::write(&temp_path, &image_data)
         .map_err(|e| format!("Failed to write temp file: {}", e))?;
     
-    // Copy to clipboard using the temp file
     let shell_command = format!("osascript -e 'set the clipboard to (read (POSIX file \"{}\") as JPEG picture)'", temp_path.to_string_lossy());
     
     let output = std::process::Command::new("sh")
@@ -218,7 +210,6 @@ async fn copy_to_clipboard(
         .output()
         .map_err(|e| format!("Failed to execute clipboard command: {}", e))?;
     
-    // Clean up temp file
     let _ = std::fs::remove_file(&temp_path);
     
     if output.status.success() {
@@ -237,13 +228,11 @@ async fn save_to_disk(
 ) -> Result<String, String> {
     println!("Saving screenshot to disk from memory cache: {}", timestamp);
     
-    // Get save location from config
     let save_location = {
         let config = config_state.lock().unwrap();
         config.get_config().default_save_location.clone()
     };
     
-    // Get image data from memory cache
     let cache_key = timestamp.to_string();
     let image_data = {
         let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
@@ -253,17 +242,14 @@ async fn save_to_disk(
     
     let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
     
-    // Create file path
     let filename = format!("snipp-{}.png", timestamp);
     let file_path = PathBuf::from(&save_location).join(&filename);
     
-    // Ensure the save directory exists
     if let Some(parent) = file_path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create save directory: {}", e))?;
     }
     
-    // Write to disk
     std::fs::write(&file_path, &image_data)
         .map_err(|e| format!("Failed to save file: {}", e))?;
     
@@ -277,7 +263,6 @@ async fn save_to_disk(
 async fn delete_from_memory(timestamp: u64) -> Result<(), String> {
     println!("Deleting screenshot from memory cache: {}", timestamp);
     
-    // Remove from memory cache
     let cache_key = timestamp.to_string();
     let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     {
@@ -317,7 +302,6 @@ async fn update_config(
 
 #[tauri::command]
 async fn open_preferences_window(app_handle: AppHandle) -> Result<(), String> {
-    // Check if preferences window already exists
     if app_handle.get_webview_window("preferences").is_some() {
         return Ok(());
     }
@@ -391,4 +375,74 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_screenshot_data_creation() {
+        let data = ScreenshotData {
+            base64_image: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAGAWA".to_string(),
+            filename: "test-1234567890.png".to_string(),
+            timestamp: 1234567890,
+            file_path: None,
+        };
+
+        assert_eq!(data.filename, "test-1234567890.png");
+        assert_eq!(data.timestamp, 1234567890);
+        assert!(data.file_path.is_none());
+        assert!(!data.base64_image.is_empty());
+    }
+
+    #[test]
+    fn test_screenshot_data_with_file_path() {
+        let mut data = ScreenshotData {
+            base64_image: "test_data".to_string(),
+            filename: "screenshot.png".to_string(),
+            timestamp: 9876543210,
+            file_path: None,
+        };
+
+        data.file_path = Some("/home/user/Desktop/screenshot.png".to_string());
+        
+        assert_eq!(data.file_path, Some("/home/user/Desktop/screenshot.png".to_string()));
+    }
+
+    #[test]
+    fn test_screenshot_cache_operations() {
+        let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        let test_key = "test_timestamp".to_string();
+        let test_data = vec![1, 2, 3, 4, 5];
+
+        {
+            let mut cache_guard = cache.lock().unwrap();
+            cache_guard.insert(test_key.clone(), test_data.clone());
+        }
+
+        let retrieved_data = {
+            let cache_guard = cache.lock().unwrap();
+            cache_guard.get(&test_key).cloned()
+        };
+
+        assert_eq!(retrieved_data, Some(test_data));
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    #[test]
+    fn test_get_cursor_position_fallback() {
+        let position = get_cursor_position();
+        assert_eq!(position, (600.0, 400.0));
+    }
+
+    #[test]
+    fn test_filename_generation() {
+        let timestamp = 1234567890u64;
+        let filename = format!("snipp-{}.png", timestamp);
+        
+        assert_eq!(filename, "snipp-1234567890.png");
+        assert!(filename.starts_with("snipp-"));
+        assert!(filename.ends_with(".png"));
+    }
 }
