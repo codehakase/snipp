@@ -82,12 +82,19 @@ mod tests {
 
     #[test]
     fn test_app_config_default() {
+        let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", "/test/home");
+        
         let config = AppConfig::default();
         
         assert_eq!(config.default_save_location, "/test/home/Desktop");
         assert_eq!(config.capture_hotkey, "Cmd+Shift+2");
         assert_eq!(config.preferences_hotkey, "Cmd+Comma");
+        
+        match original_home {
+            Some(home) => std::env::set_var("HOME", home),
+            None => std::env::remove_var("HOME"),
+        }
     }
 
     #[test]

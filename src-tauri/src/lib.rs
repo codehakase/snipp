@@ -15,9 +15,17 @@ type ScreenshotCache = Mutex<HashMap<String, Vec<u8>>>;
 static SCREENSHOT_CACHE: std::sync::OnceLock<ScreenshotCache> = std::sync::OnceLock::new();
 
 mod config;
+mod history;
+mod thumbnail;
+mod tray;
+
 use config::{AppConfig, ConfigManager};
+use history::HistoryManager;
+use thumbnail::ThumbnailGenerator;
 
 type ConfigState = Mutex<ConfigManager>;
+type HistoryState = Mutex<HistoryManager>;
+type ThumbnailState = Mutex<ThumbnailGenerator>;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct ScreenshotData {
@@ -82,6 +90,68 @@ async fn capture_screenshot(
         filename: filename.clone(),
         timestamp,
         file_path: None, // Will be set when/if saved to disk
+    };
+    
+    show_popup_window(&app_handle, &screenshot_data).await?;
+    
+    Ok(screenshot_data)
+}
+
+#[tauri::command]
+async fn capture_full_screen(
+    app_handle: AppHandle,
+    _config_state: State<'_, ConfigState>,
+) -> Result<ScreenshotData, String> {
+    println!("Starting full screen capture...");
+    
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    
+    let filename = format!("snipp-fullscreen-{}.png", timestamp);
+    
+    let temp_path = std::env::temp_dir().join(format!("snipp_fullscreen_{}.png", timestamp));
+    
+    let shell = app_handle.shell();
+    let output = shell
+        .command("screencapture")
+        .args(["-t", "png", temp_path.to_string_lossy().as_ref()])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to execute screencapture: {}", e))?;
+    
+    if !output.status.success() {
+        let _ = std::fs::remove_file(&temp_path);
+        return Err("Full screen capture failed".to_string());
+    }
+    
+    let image_data = std::fs::read(&temp_path)
+        .map_err(|e| format!("Failed to read captured screenshot: {}", e))?;
+    
+    let _ = std::fs::remove_file(&temp_path);
+    
+    if image_data.is_empty() {
+        return Err("No image data captured".to_string());
+    }
+    
+    println!("Captured {} bytes of full screen image data", image_data.len());
+    
+    let base64_image = base64::prelude::BASE64_STANDARD.encode(&image_data);
+    
+    let cache_key = timestamp.to_string();
+    let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    {
+        let mut cache_guard = cache.lock().unwrap();
+        cache_guard.insert(cache_key.clone(), image_data);
+        println!("Stored full screen image in memory cache with key: {}", cache_key);
+    }
+    
+    let screenshot_data = ScreenshotData {
+        base64_image,
+        filename: filename.clone(),
+        timestamp,
+        file_path: None,
     };
     
     show_popup_window(&app_handle, &screenshot_data).await?;
@@ -225,6 +295,7 @@ async fn copy_to_clipboard(
 async fn save_to_disk(
     timestamp: u64,
     config_state: State<'_, ConfigState>,
+    history_state: State<'_, HistoryState>,
 ) -> Result<String, String> {
     println!("Saving screenshot to disk from memory cache: {}", timestamp);
     
@@ -255,6 +326,13 @@ async fn save_to_disk(
     
     let file_path_str = file_path.to_string_lossy().to_string();
     println!("Successfully saved screenshot to: {}", file_path_str);
+    
+    {
+        let mut history = history_state.lock().unwrap();
+        if let Err(e) = history.add_screenshot(file_path_str.clone()) {
+            eprintln!("Failed to add screenshot to history: {}", e);
+        }
+    }
     
     Ok(file_path_str)
 }
@@ -349,9 +427,115 @@ async fn choose_save_location(app_handle: AppHandle) -> Result<Option<String>, S
     Ok(folder)
 }
 
+#[tauri::command]
+async fn get_recent_screenshots(
+    history_state: State<'_, HistoryState>,
+    thumbnail_state: State<'_, ThumbnailState>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let history = history_state.lock().unwrap();
+    let thumbnail_gen = thumbnail_state.lock().unwrap();
+    
+    let recent_screenshots = history.get_recent_screenshots(10);
+    let mut screenshots_with_thumbnails = Vec::new();
+    
+    for screenshot in recent_screenshots {
+        let thumbnail_base64 = if std::path::Path::new(&screenshot.file_path).exists() {
+            thumbnail_gen.get_thumbnail_base64(&screenshot.file_path, 64)
+                .unwrap_or_else(|_| "".to_string())
+        } else {
+            "".to_string()
+        };
+        
+        let screenshot_data = serde_json::json!({
+            "file_path": screenshot.file_path,
+            "timestamp": screenshot.timestamp,
+            "filename": screenshot.filename,
+            "thumbnail": thumbnail_base64,
+        });
+        
+        screenshots_with_thumbnails.push(screenshot_data);
+    }
+    
+    Ok(screenshots_with_thumbnails)
+}
+
+#[tauri::command]
+async fn copy_screenshot_from_path(file_path: String) -> Result<(), String> {
+    let shell_command = format!("osascript -e 'set the clipboard to (read (POSIX file \"{}\") as JPEG picture)'", file_path);
+    
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&shell_command)
+        .output()
+        .map_err(|e| format!("Failed to execute clipboard command: {}", e))?;
+    
+    if output.status.success() {
+        println!("Successfully copied screenshot to clipboard");
+        Ok(())
+    } else {
+        let error = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Clipboard operation failed: {}", error))
+    }
+}
+
+#[tauri::command]
+async fn open_in_finder(file_path: String) -> Result<(), String> {
+    let output = std::process::Command::new("open")
+        .arg("-R")
+        .arg(&file_path)
+        .output()
+        .map_err(|e| format!("Failed to open in Finder: {}", e))?;
+    
+    if output.status.success() {
+        Ok(())
+    } else {
+        let error = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Failed to reveal in Finder: {}", error))
+    }
+}
+
+#[tauri::command]
+async fn delete_screenshot(
+    file_path: String,
+    history_state: State<'_, HistoryState>,
+    thumbnail_state: State<'_, ThumbnailState>,
+) -> Result<(), String> {
+    if std::path::Path::new(&file_path).exists() {
+        std::fs::remove_file(&file_path)
+            .map_err(|e| format!("Failed to delete file: {}", e))?;
+    }
+    
+    {
+        let mut history = history_state.lock().unwrap();
+        if let Err(e) = history.remove_screenshot(&file_path) {
+            eprintln!("Failed to remove screenshot from history: {}", e);
+        }
+    }
+    
+    {
+        let thumbnail_gen = thumbnail_state.lock().unwrap();
+        if let Err(e) = thumbnail_gen.remove_thumbnail(&file_path, 64) {
+            eprintln!("Failed to remove thumbnail: {}", e);
+        }
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn close_recent_window(app_handle: AppHandle) -> Result<(), String> {
+    if let Some(recent_window) = app_handle.get_webview_window("recent_screenshots") {
+        recent_window.close()
+            .map_err(|e| format!("Failed to close recent window: {}", e))?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let config_manager = ConfigManager::new().expect("Failed to initialize config manager");
+    let history_manager = HistoryManager::new().expect("Failed to initialize history manager");
+    let thumbnail_generator = ThumbnailGenerator::new().expect("Failed to initialize thumbnail generator");
     
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -360,9 +544,29 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_positioner::init())
         .manage(ConfigState::new(config_manager))
+        .manage(HistoryState::new(history_manager))
+        .manage(ThumbnailState::new(thumbnail_generator))
+        .setup(|app| {
+            if let Err(e) = tray::setup_system_tray(app.handle()) {
+                eprintln!("Failed to setup system tray: {}", e);
+            }
+
+            let _ = app.handle().plugin(tauri_plugin_positioner::init());
+            tauri::tray::TrayIconBuilder::new()
+                .on_tray_icon_event(|tray_handle, event| {
+                    tauri_plugin_positioner::on_tray_event(tray_handle.app_handle(), &event);
+                })
+                .build(app)?;
+            
+            app.get_webview_window("main").unwrap().hide().unwrap();
+            
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             capture_screenshot,
+            capture_full_screen,
             copy_to_clipboard,
             save_to_disk,
             delete_from_memory,
@@ -371,7 +575,12 @@ pub fn run() {
             update_config,
             open_preferences_window,
             close_preferences_window,
-            choose_save_location
+            choose_save_location,
+            get_recent_screenshots,
+            copy_screenshot_from_path,
+            open_in_finder,
+            delete_screenshot,
+            close_recent_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

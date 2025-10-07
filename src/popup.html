@@ -4,132 +4,137 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Screenshot Captured</title>
+  <link rel="stylesheet" href="dist/styles.css">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    /* Hide scrollbars */
+    /* Custom animations and scrollbar hiding */
     ::-webkit-scrollbar {
       display: none;
     }
     
     html, body {
-      -ms-overflow-style: none;  /* Internet Explorer 10+ */
-      scrollbar-width: none;  /* Firefox */
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
       background: transparent;
-      width: 100%;
-      height: 100%;
+      width: 100vw;
+      height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 8px;
-      overflow: hidden; /* Hide scrollbars */
+      overflow: hidden;
     }
 
     .popup-container {
       width: 320px;
-      background: rgba(250, 250, 250, 0.95);
+      background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(20px);
       border: 1px solid rgba(0, 0, 0, 0.08);
       border-radius: 12px;
       padding: 16px;
-      box-shadow: 
-        0 8px 32px rgba(0, 0, 0, 0.12),
-        0 2px 8px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
       animation: slideIn 0.2s ease-out;
     }
 
-    .thumbnail-preview {
-      width: 280px;
-      height: 180px;
-      border-radius: 8px;
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      background: #f8f9fa;
-      object-fit: cover;
-      display: block;
+    .image-container {
+      position: relative;
+      width: 288px;
+      height: 176px;
       margin: 0 auto;
     }
 
-    .info-section {
-      margin-top: 12px;
-      text-align: center;
+    .image-container:hover .overlay {
+      opacity: 1;
     }
 
-    .info-title {
-      font-size: 13px;
-      font-weight: 500;
-      color: rgba(0, 0, 0, 0.85);
-      margin-bottom: 2px;
-    }
-
-    .info-path {
-      font-size: 11px;
-      font-weight: 400;
-      color: rgba(0, 0, 0, 0.5);
-      font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
-    }
-
-    .action-buttons {
-      margin-top: 16px;
-      display: flex;
-      gap: 8px;
-      justify-content: center;
-    }
-
-    .btn {
-      height: 28px;
-      padding: 0 12px;
-      border-radius: 6px;
-      border: none;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
-    }
-
-    .btn-primary {
-      background: linear-gradient(180deg, #007AFF 0%, #0051D5 100%);
-      color: white;
-      box-shadow: 0 1px 3px rgba(0, 122, 255, 0.3);
-    }
-
-    .btn-primary:hover {
-      background: linear-gradient(180deg, #0051D5 0%, #003DA5 100%);
-      box-shadow: 0 2px 6px rgba(0, 122, 255, 0.4);
-      transform: translateY(-1px);
-    }
-
-    .btn-primary:active {
-      transform: translateY(0);
-      box-shadow: 0 1px 2px rgba(0, 122, 255, 0.3);
-    }
-
-    .btn-secondary {
-      background: rgba(0, 0, 0, 0.04);
-      color: rgba(0, 0, 0, 0.75);
+    .thumbnail {
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
       border: 1px solid rgba(0, 0, 0, 0.08);
+      background: #f8f9fa;
+      object-fit: contain;
+      display: block;
     }
 
-    .btn-secondary:hover {
-      background: rgba(0, 0, 0, 0.08);
-      border-color: rgba(0, 0, 0, 0.12);
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(2px);
+      border-radius: 8px;
     }
 
-    .btn-secondary:active {
-      background: rgba(0, 0, 0, 0.12);
+    .action-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+
+    .action-btn:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    .action-btn:active {
+      transform: scale(1.05);
+    }
+
+    .btn-save {
+      background: #3b82f6;
+      color: white;
+    }
+
+    .btn-save:hover {
+      background: #2563eb;
+    }
+
+    .btn-copy {
+      background: #6b7280;
+      color: white;
+    }
+
+    .btn-copy:hover {
+      background: #4b5563;
+    }
+
+    .btn-delete {
+      background: #dc2626;
+      color: white;
+    }
+
+    .btn-delete:hover {
+      background: #b91c1c;
     }
 
     .btn-success {
-      background: linear-gradient(180deg, #28a745 0%, #1e7e34 100%);
-      color: white;
+      background: #16a34a !important;
+    }
+
+    .action-btn svg {
+      width: 24px;
+      height: 24px;
     }
 
     @keyframes slideIn {
@@ -143,10 +148,6 @@
       }
     }
 
-    .popup-container.dismissing {
-      animation: slideOut 0.2s ease-in forwards;
-    }
-
     @keyframes slideOut {
       to {
         opacity: 0;
@@ -154,83 +155,72 @@
       }
     }
 
-    /* Dark mode support */
+    .animate-slide-in {
+      animation: slideIn 0.2s ease-out;
+    }
+
+    .animate-slide-out {
+      animation: slideOut 0.2s ease-in forwards;
+    }
+
+    /* Dark mode */
     @media (prefers-color-scheme: dark) {
       .popup-container {
         background: rgba(45, 45, 45, 0.95);
         border-color: rgba(255, 255, 255, 0.08);
-        box-shadow: 
-          0 8px 32px rgba(0, 0, 0, 0.4),
-          0 2px 8px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
       }
 
-      .thumbnail-preview {
+      .thumbnail {
         border-color: rgba(255, 255, 255, 0.08);
         background: rgba(255, 255, 255, 0.04);
-      }
-
-      .info-title {
-        color: rgba(255, 255, 255, 0.9);
-      }
-
-      .info-path {
-        color: rgba(255, 255, 255, 0.5);
-      }
-
-      .btn-secondary {
-        background: rgba(255, 255, 255, 0.08);
-        color: rgba(255, 255, 255, 0.85);
-        border-color: rgba(255, 255, 255, 0.12);
-      }
-
-      .btn-secondary:hover {
-        background: rgba(255, 255, 255, 0.12);
-        border-color: rgba(255, 255, 255, 0.18);
       }
     }
   </style>
 </head>
-<body>
-  <div class="popup-container" id="popup">
-    <img class="thumbnail-preview" id="thumbnail" src="" alt="Screenshot preview" />
-    
-    <div class="info-section">
-      <div class="info-title">Screenshot captured</div>
-      <div class="info-path" id="file-path">Ready to save or copy</div>
-    </div>
-
-    <div class="action-buttons">
-      <button class="btn btn-primary" id="save-btn">Save to Desktop</button>
-      <button class="btn btn-secondary" id="copy-btn">Copy</button>
-      <button class="btn btn-secondary" id="delete-btn">Delete</button>
+<body class="bg-transparent w-screen h-screen flex items-center justify-center p-2 overflow-hidden">
+  <div class="w-80 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl border border-black/8 dark:border-white/8 rounded-xl p-4 shadow-2xl animate-slide-in" id="popup">
+    <div class="relative group w-72 h-44 mx-auto">
+      <img class="w-full h-full rounded-lg border border-black/8 dark:border-white/8 bg-gray-100 dark:bg-white/5 object-contain" id="thumbnail" src="" alt="Screenshot preview" />
+      
+      <!-- Action buttons overlay -->
+      <div class="absolute inset-0 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40 rounded-lg backdrop-blur-sm">
+        <button class="w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20" id="save-btn" title="Save to Desktop">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
+          </svg>
+        </button>
+        
+        <button class="w-12 h-12 bg-gray-600 hover:bg-gray-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20" id="copy-btn" title="Copy to Clipboard">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+          </svg>
+        </button>
+        
+        <button class="w-12 h-12 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20" id="delete-btn" title="Delete Screenshot">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 
   <script>
-    console.log('🚀 Memory-first popup loading...');
-    
     let currentScreenshotData = null;
-
-    // Setup immediately
     setupPopup();
 
     function setupPopup() {
-      console.log('Setting up memory-first popup...');
-      
-      // Setup button handlers immediately
       setupButtonHandlers();
       
       // Setup Tauri event listener
       if (window.__TAURI__) {
-        console.log('Tauri APIs available, setting up event listener');
         setupTauriEventListener();
       } else {
-        console.log('Waiting for Tauri APIs...');
         let attempts = 0;
         const checkTauri = () => {
           attempts++;
           if (window.__TAURI__) {
-            console.log('Tauri APIs loaded after', attempts, 'attempts');
             setupTauriEventListener();
           } else if (attempts < 20) {
             setTimeout(checkTauri, 50);
@@ -248,14 +238,11 @@
         
         // Listen for screenshot data with base64 image
         listen('screenshot-data', (event) => {
-          console.log('📸 Received screenshot data:', event.payload);
           currentScreenshotData = event.payload;
           loadScreenshotFromMemory(currentScreenshotData);
         }).catch(error => {
           console.error('❌ Failed to listen for screenshot-data:', error);
         });
-        
-        console.log('✅ Event listener setup complete');
         
       } catch (error) {
         console.error('❌ Error setting up Tauri event listener:', error);
@@ -263,33 +250,23 @@
     }
 
     function loadScreenshotFromMemory(screenshotData) {
-      console.log('📷 Loading screenshot from memory data...');
       const thumbnail = document.getElementById('thumbnail');
-      const filePath = document.getElementById('file-path');
-      
-      if (!thumbnail || !filePath) {
+      if (!thumbnail) {
         console.error('❌ Missing DOM elements');
         return;
       }
       
       // Load base64 image directly - no file system dependency!
       const base64Src = `data:image/png;base64,${screenshotData.base64_image}`;
-      console.log('🖼️ Setting image source to base64 data...');
       
       thumbnail.src = base64Src;
       thumbnail.onload = () => {
-        console.log('✅ Image loaded successfully from base64 data');
         thumbnail.style.display = 'block';
       };
       thumbnail.onerror = (error) => {
         console.error('❌ Image failed to load:', error);
         showImagePlaceholder();
       };
-      
-      // Update file info
-      filePath.textContent = `${screenshotData.filename} (in memory)`;
-      
-      console.log('📷 Screenshot loaded successfully');
     }
 
     function showImagePlaceholder() {
@@ -302,14 +279,9 @@
     }
 
     function setupButtonHandlers() {
-      console.log('🔘 Setting up button handlers...');
-      
-      // Save button - saves from memory to disk
       const saveBtn = document.getElementById('save-btn');
       if (saveBtn) {
         saveBtn.addEventListener('click', async () => {
-          console.log('💾 Save button clicked');
-          
           if (!currentScreenshotData) {
             console.error('❌ No screenshot data available');
             return;
@@ -317,20 +289,21 @@
           
           try {
             if (window.__TAURI__ && window.__TAURI__.core) {
-              const filePath = await window.__TAURI__.core.invoke('save_to_disk', { 
+              await window.__TAURI__.core.invoke('save_to_disk', { 
                 timestamp: currentScreenshotData.timestamp 
               });
-              console.log('✅ Screenshot saved to:', filePath);
               
-              // Update UI
-              document.getElementById('file-path').textContent = filePath;
-              saveBtn.textContent = 'Saved!';
-              saveBtn.classList.remove('btn-primary');
-              saveBtn.classList.add('btn-success');
+              saveBtn.innerHTML = `
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+              `;
+              saveBtn.className = 'w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white/20';
+              saveBtn.title = 'Saved!';
               
               setTimeout(() => {
                 closePopup();
-              }, 2000);
+              }, 200);
             } else {
               console.warn('⚠️ Tauri invoke not available');
             }
@@ -338,15 +311,12 @@
             console.error('❌ Failed to save screenshot:', error);
           }
         });
-        console.log('✅ Save button handler attached');
       }
       
       // Copy button - copies from memory to clipboard
       const copyBtn = document.getElementById('copy-btn');
       if (copyBtn) {
         copyBtn.addEventListener('click', async () => {
-          console.log('📋 Copy button clicked');
-          
           if (!currentScreenshotData) {
             console.error('❌ No screenshot data available');
             return;
@@ -357,16 +327,22 @@
               await window.__TAURI__.core.invoke('copy_to_clipboard', { 
                 timestamp: currentScreenshotData.timestamp 
               });
-              console.log('✅ Screenshot copied to clipboard');
-              
-              const originalText = copyBtn.textContent;
-              copyBtn.textContent = 'Copied!';
-              copyBtn.classList.add('btn-success');
+
+              const originalHTML = copyBtn.innerHTML;
+              copyBtn.innerHTML = `
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+              `;
+              copyBtn.className = 'w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white/20';
+              copyBtn.title = 'Copied!';
               
               setTimeout(() => {
-                copyBtn.textContent = originalText;
-                copyBtn.classList.remove('btn-success');
-              }, 1000);
+                copyBtn.innerHTML = originalHTML;
+                copyBtn.className = 'w-12 h-12 bg-gray-600 hover:bg-gray-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20';
+                copyBtn.title = 'Copy to Clipboard';
+                closePopup();
+              }, 200);
               
             } else {
               console.warn('⚠️ Tauri invoke not available');
@@ -375,15 +351,12 @@
             console.error('❌ Failed to copy to clipboard:', error);
           }
         });
-        console.log('✅ Copy button handler attached');
       }
       
       // Delete button - removes from memory
       const deleteBtn = document.getElementById('delete-btn');
       if (deleteBtn) {
         deleteBtn.addEventListener('click', async () => {
-          console.log('🗑️ Delete button clicked');
-          
           if (!currentScreenshotData) {
             console.error('❌ No screenshot data available');
             return;
@@ -394,14 +367,18 @@
               await window.__TAURI__.core.invoke('delete_from_memory', { 
                 timestamp: currentScreenshotData.timestamp 
               });
-              console.log('✅ Screenshot deleted from memory');
               
-              deleteBtn.textContent = 'Deleted!';
-              deleteBtn.classList.add('btn-success');
+              deleteBtn.innerHTML = `
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+              `;
+              deleteBtn.className = 'w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white/20';
+              deleteBtn.title = 'Deleted!';
               
               setTimeout(() => {
                 closePopup();
-              }, 1500);
+              }, 200);
               
             } else {
               console.warn('⚠️ Tauri invoke not available');
@@ -410,26 +387,21 @@
             console.error('❌ Failed to delete screenshot:', error);
           }
         });
-        console.log('✅ Delete button handler attached');
       }
       
       // Escape key handler
       document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
-          console.log('⌨️ Escape key pressed');
           closePopup();
         }
       });
-      
-      
-      console.log('✅ All button handlers setup complete');
     }
 
 
     async function closePopup() {
-      console.log('🚪 Closing popup');
       const popup = document.getElementById('popup');
-      popup.classList.add('dismissing');
+      popup.classList.remove('animate-slide-in');
+      popup.classList.add('animate-slide-out');
       
       setTimeout(async () => {
         try {
@@ -441,8 +413,6 @@
         }
       }, 200);
     }
-
-    console.log('✅ Memory-first popup script loaded successfully');
   </script>
 </body>
 </html>

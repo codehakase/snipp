@@ -7,7 +7,19 @@ const infoEl = document.getElementById('info');
 
 function updateStatus(message, type = 'info') {
   statusEl.innerHTML = `<p>${message}</p>`;
-  statusEl.className = `status ${type}`;
+  
+  const baseClasses = 'border rounded-lg p-4 text-center w-full mb-6';
+  
+  switch (type) {
+    case 'ready':
+      statusEl.className = `${baseClasses} bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-800 dark:text-green-200`;
+      break;
+    case 'error':
+      statusEl.className = `${baseClasses} bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200`;
+      break;
+    default:
+      statusEl.className = `${baseClasses} bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200`;
+  }
 }
 
 function updateInfo(message) {
@@ -22,7 +34,6 @@ async function captureScreenshot() {
     }
     
     const result = await invoke('capture_screenshot');
-    console.log('Screenshot captured:', result);
     
     if (statusEl && infoEl) {
       updateStatus('✅ Screenshot captured successfully!', 'ready');
@@ -35,7 +46,6 @@ async function captureScreenshot() {
     }
     
   } catch (error) {
-    console.error('Screenshot failed:', error);
     if (statusEl && infoEl) {
       updateStatus(`❌ Error: ${error}`, 'error');
       updateInfo('Try again or check permissions');
@@ -47,7 +57,7 @@ async function openPreferences() {
   try {
     await invoke('open_preferences_window');
   } catch (error) {
-    console.error('Failed to open preferences:', error);
+    updateStatus(`❌ Error opening preferences: ${error}`, 'error');
   }
 }
 
@@ -59,7 +69,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     try {
       config = await invoke('get_config');
     } catch (error) {
-      console.log('Using default config');
       config = {
         capture_hotkey: 'Cmd+Shift+2',
         preferences_hotkey: 'Cmd+Comma'
@@ -69,12 +78,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     await register(config.capture_hotkey, captureScreenshot);
     await register(config.preferences_hotkey, openPreferences);
     
-    console.log('Global shortcuts registered:', config.capture_hotkey, config.preferences_hotkey);
     updateStatus('🟢 Ready - Press ⌘⇧2 or use test button', 'ready');
     updateInfo('Global shortcuts are active! ⌘⇧2 for capture, ⌘, for preferences');
     
   } catch (error) {
-    console.error('Failed to register global shortcuts:', error);
     updateStatus(`❌ Failed to register shortcuts: ${error}`, 'error');
     updateInfo('Check Accessibility permissions in System Preferences');
   }
