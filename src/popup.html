@@ -4,12 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Screenshot Captured</title>
-  <link rel="stylesheet" href="dist/styles.css">
+  <link rel="stylesheet" href="styles.css">
   <style>
-    /* Custom animations and scrollbar hiding */
-    ::-webkit-scrollbar {
-      display: none;
-    }
+    ::-webkit-scrollbar { display: none; }
     
     html, body {
       -ms-overflow-style: none;
@@ -17,124 +14,8 @@
       margin: 0;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
-    }
-
-    body {
       background: transparent;
-      width: 100vw;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px;
       overflow: hidden;
-    }
-
-    .popup-container {
-      width: 320px;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-      animation: slideIn 0.2s ease-out;
-    }
-
-    .image-container {
-      position: relative;
-      width: 288px;
-      height: 176px;
-      margin: 0 auto;
-    }
-
-    .image-container:hover .overlay {
-      opacity: 1;
-    }
-
-    .thumbnail {
-      width: 100%;
-      height: 100%;
-      border-radius: 8px;
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      background: #f8f9fa;
-      object-fit: contain;
-      display: block;
-    }
-
-    .overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(2px);
-      border-radius: 8px;
-    }
-
-    .action-btn {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      border: 2px solid rgba(255, 255, 255, 0.2);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    }
-
-    .action-btn:hover {
-      transform: scale(1.1);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-    }
-
-    .action-btn:active {
-      transform: scale(1.05);
-    }
-
-    .btn-save {
-      background: #3b82f6;
-      color: white;
-    }
-
-    .btn-save:hover {
-      background: #2563eb;
-    }
-
-    .btn-copy {
-      background: #6b7280;
-      color: white;
-    }
-
-    .btn-copy:hover {
-      background: #4b5563;
-    }
-
-    .btn-delete {
-      background: #dc2626;
-      color: white;
-    }
-
-    .btn-delete:hover {
-      background: #b91c1c;
-    }
-
-    .btn-success {
-      background: #16a34a !important;
-    }
-
-    .action-btn svg {
-      width: 24px;
-      height: 24px;
     }
 
     @keyframes slideIn {
@@ -155,50 +36,30 @@
       }
     }
 
-    .animate-slide-in {
-      animation: slideIn 0.2s ease-out;
-    }
-
-    .animate-slide-out {
-      animation: slideOut 0.2s ease-in forwards;
-    }
-
-    /* Dark mode */
-    @media (prefers-color-scheme: dark) {
-      .popup-container {
-        background: rgba(45, 45, 45, 0.95);
-        border-color: rgba(255, 255, 255, 0.08);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.2);
-      }
-
-      .thumbnail {
-        border-color: rgba(255, 255, 255, 0.08);
-        background: rgba(255, 255, 255, 0.04);
-      }
-    }
+    .animate-slide-in { animation: slideIn 0.2s ease-out; }
+    .animate-slide-out { animation: slideOut 0.2s ease-in forwards; }
   </style>
 </head>
-<body class="bg-transparent w-screen h-screen flex items-center justify-center p-2 overflow-hidden">
+<body class="bg-transparent w-screen h-screen flex items-center justify-center p-2">
   <div class="w-80 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl border border-black/8 dark:border-white/8 rounded-xl p-4 shadow-2xl animate-slide-in" id="popup">
     <div class="relative group w-72 h-44 mx-auto">
       <img class="w-full h-full rounded-lg border border-black/8 dark:border-white/8 bg-gray-100 dark:bg-white/5 object-contain" id="thumbnail" src="" alt="Screenshot preview" />
       
-      <!-- Action buttons overlay -->
       <div class="absolute inset-0 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40 rounded-lg backdrop-blur-sm">
         <button class="w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20" id="save-btn" title="Save to Desktop">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
           </svg>
         </button>
         
         <button class="w-12 h-12 bg-gray-600 hover:bg-gray-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20" id="copy-btn" title="Copy to Clipboard">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
           </svg>
         </button>
         
         <button class="w-12 h-12 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20" id="delete-btn" title="Delete Screenshot">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
           </svg>
         </button>
@@ -208,208 +69,90 @@
 
   <script>
     let currentScreenshotData = null;
-    setupPopup();
 
-    function setupPopup() {
-      setupButtonHandlers();
-      
-      // Setup Tauri event listener
-      if (window.__TAURI__) {
-        setupTauriEventListener();
-      } else {
-        let attempts = 0;
-        const checkTauri = () => {
-          attempts++;
-          if (window.__TAURI__) {
-            setupTauriEventListener();
-          } else if (attempts < 20) {
-            setTimeout(checkTauri, 50);
-          } else {
-            console.error('Tauri APIs not available after 20 attempts');
-          }
-        };
-        checkTauri();
-      }
-    }
+    // Setup on load
+    window.addEventListener('DOMContentLoaded', () => {
+      setupEventListeners();
+      setupTauriListener();
+    });
 
-    function setupTauriEventListener() {
-      try {
-        const { listen } = window.__TAURI__.event;
-        
-        // Listen for screenshot data with base64 image
-        listen('screenshot-data', (event) => {
-          currentScreenshotData = event.payload;
-          loadScreenshotFromMemory(currentScreenshotData);
-        }).catch(error => {
-          console.error('❌ Failed to listen for screenshot-data:', error);
-        });
-        
-      } catch (error) {
-        console.error('❌ Error setting up Tauri event listener:', error);
-      }
-    }
-
-    function loadScreenshotFromMemory(screenshotData) {
-      const thumbnail = document.getElementById('thumbnail');
-      if (!thumbnail) {
-        console.error('❌ Missing DOM elements');
-        return;
-      }
+    function setupTauriListener() {
+      if (!window.__TAURI__?.event) return;
       
-      // Load base64 image directly - no file system dependency!
-      const base64Src = `data:image/png;base64,${screenshotData.base64_image}`;
-      
-      thumbnail.src = base64Src;
-      thumbnail.onload = () => {
-        thumbnail.style.display = 'block';
-      };
-      thumbnail.onerror = (error) => {
-        console.error('❌ Image failed to load:', error);
-        showImagePlaceholder();
-      };
-    }
-
-    function showImagePlaceholder() {
-      const thumbnail = document.getElementById('thumbnail');
-      thumbnail.style.backgroundColor = '#e1e5e9';
-      thumbnail.style.display = 'flex';
-      thumbnail.style.alignItems = 'center';
-      thumbnail.style.justifyContent = 'center';
-      thumbnail.alt = 'Screenshot preview unavailable';
-    }
-
-    function setupButtonHandlers() {
-      const saveBtn = document.getElementById('save-btn');
-      if (saveBtn) {
-        saveBtn.addEventListener('click', async () => {
-          if (!currentScreenshotData) {
-            console.error('❌ No screenshot data available');
-            return;
-          }
-          
-          try {
-            if (window.__TAURI__ && window.__TAURI__.core) {
-              await window.__TAURI__.core.invoke('save_to_disk', { 
-                timestamp: currentScreenshotData.timestamp 
-              });
-              
-              saveBtn.innerHTML = `
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
-              `;
-              saveBtn.className = 'w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white/20';
-              saveBtn.title = 'Saved!';
-              
-              setTimeout(() => {
-                closePopup();
-              }, 200);
-            } else {
-              console.warn('⚠️ Tauri invoke not available');
-            }
-          } catch (error) {
-            console.error('❌ Failed to save screenshot:', error);
-          }
-        });
-      }
-      
-      // Copy button - copies from memory to clipboard
-      const copyBtn = document.getElementById('copy-btn');
-      if (copyBtn) {
-        copyBtn.addEventListener('click', async () => {
-          if (!currentScreenshotData) {
-            console.error('❌ No screenshot data available');
-            return;
-          }
-          
-          try {
-            if (window.__TAURI__ && window.__TAURI__.core) {
-              await window.__TAURI__.core.invoke('copy_to_clipboard', { 
-                timestamp: currentScreenshotData.timestamp 
-              });
-
-              const originalHTML = copyBtn.innerHTML;
-              copyBtn.innerHTML = `
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
-              `;
-              copyBtn.className = 'w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white/20';
-              copyBtn.title = 'Copied!';
-              
-              setTimeout(() => {
-                copyBtn.innerHTML = originalHTML;
-                copyBtn.className = 'w-12 h-12 bg-gray-600 hover:bg-gray-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20';
-                copyBtn.title = 'Copy to Clipboard';
-                closePopup();
-              }, 200);
-              
-            } else {
-              console.warn('⚠️ Tauri invoke not available');
-            }
-          } catch (error) {
-            console.error('❌ Failed to copy to clipboard:', error);
-          }
-        });
-      }
-      
-      // Delete button - removes from memory
-      const deleteBtn = document.getElementById('delete-btn');
-      if (deleteBtn) {
-        deleteBtn.addEventListener('click', async () => {
-          if (!currentScreenshotData) {
-            console.error('❌ No screenshot data available');
-            return;
-          }
-          
-          try {
-            if (window.__TAURI__ && window.__TAURI__.core) {
-              await window.__TAURI__.core.invoke('delete_from_memory', { 
-                timestamp: currentScreenshotData.timestamp 
-              });
-              
-              deleteBtn.innerHTML = `
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                </svg>
-              `;
-              deleteBtn.className = 'w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white/20';
-              deleteBtn.title = 'Deleted!';
-              
-              setTimeout(() => {
-                closePopup();
-              }, 200);
-              
-            } else {
-              console.warn('⚠️ Tauri invoke not available');
-            }
-          } catch (error) {
-            console.error('❌ Failed to delete screenshot:', error);
-          }
-        });
-      }
-      
-      // Escape key handler
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') {
-          closePopup();
-        }
+      window.__TAURI__.event.listen('screenshot-data', (event) => {
+        currentScreenshotData = event.payload;
+        loadScreenshot(currentScreenshotData);
       });
     }
 
+    function loadScreenshot(data) {
+      const thumbnail = document.getElementById('thumbnail');
+      thumbnail.src = `data:image/png;base64,${data.base64_image}`;
+    }
+
+    function setupEventListeners() {
+      document.getElementById('save-btn')?.addEventListener('click', async () => {
+        if (!currentScreenshotData) return;
+        
+        try {
+          await window.__TAURI__.core.invoke('save_to_disk', { 
+            timestamp: currentScreenshotData.timestamp 
+          });
+          showSuccess('save-btn');
+          setTimeout(closePopup, 200);
+        } catch (error) {
+          console.error('Save failed:', error);
+        }
+      });
+
+      document.getElementById('copy-btn')?.addEventListener('click', async () => {
+        if (!currentScreenshotData) return;
+        
+        try {
+          await window.__TAURI__.core.invoke('copy_to_clipboard', { 
+            timestamp: currentScreenshotData.timestamp 
+          });
+          showSuccess('copy-btn');
+          setTimeout(closePopup, 200);
+        } catch (error) {
+          console.error('Copy failed:', error);
+        }
+      });
+
+      document.getElementById('delete-btn')?.addEventListener('click', async () => {
+        if (!currentScreenshotData) return;
+        
+        try {
+          await window.__TAURI__.core.invoke('delete_from_memory', { 
+            timestamp: currentScreenshotData.timestamp 
+          });
+          showSuccess('delete-btn');
+          setTimeout(closePopup, 200);
+        } catch (error) {
+          console.error('Delete failed:', error);
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closePopup();
+      });
+    }
+
+    function showSuccess(buttonId) {
+      const btn = document.getElementById(buttonId);
+      btn.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+      btn.className = 'w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white/20';
+    }
 
     async function closePopup() {
       const popup = document.getElementById('popup');
-      popup.classList.remove('animate-slide-in');
       popup.classList.add('animate-slide-out');
       
       setTimeout(async () => {
         try {
-          if (window.__TAURI__ && window.__TAURI__.core) {
-            await window.__TAURI__.core.invoke('close_popup_window');
-          }
+          await window.__TAURI__.core.invoke('close_popup_window');
         } catch (error) {
-          console.error('❌ Error closing popup:', error);
+          console.error('Close failed:', error);
         }
       }, 200);
     }

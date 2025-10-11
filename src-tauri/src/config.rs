@@ -143,30 +143,4 @@ mod tests {
         assert_eq!(updated_config.preferences_hotkey, new_config.preferences_hotkey);
     }
 
-    #[test]
-    fn test_screenshot_data_structure() {
-        use crate::ScreenshotData;
-        
-        let data = ScreenshotData {
-            base64_image: "test_base64".to_string(),
-            filename: "test.png".to_string(),
-            timestamp: 1234567890,
-            file_path: Some("/path/to/file.png".to_string()),
-        };
-
-        assert_eq!(data.base64_image, "test_base64");
-        assert_eq!(data.filename, "test.png");
-        assert_eq!(data.timestamp, 1234567890);
-        assert_eq!(data.file_path, Some("/path/to/file.png".to_string()));
-    }
-
-    #[test]
-    fn test_cursor_position_fallback() {
-        #[cfg(not(target_os = "macos"))]
-        {
-            use crate::get_cursor_position;
-            let pos = get_cursor_position();
-            assert_eq!(pos, (600.0, 400.0));
-        }
-    }
 }

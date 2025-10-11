@@ -549,16 +549,7 @@ pub fn run() {
         .manage(HistoryState::new(history_manager))
         .manage(ThumbnailState::new(thumbnail_generator))
         .setup(|app| {
-            if let Err(e) = tray::setup_system_tray(app.handle()) {
-                eprintln!("Failed to setup system tray: {}", e);
-            }
-
-            let _ = app.handle().plugin(tauri_plugin_positioner::init());
-            tauri::tray::TrayIconBuilder::new()
-                .on_tray_icon_event(|tray_handle, event| {
-                    tauri_plugin_positioner::on_tray_event(tray_handle.app_handle(), &event);
-                })
-                .build(app)?;
+            tray::setup_system_tray(app.handle())?;
             
             app.get_webview_window("main").unwrap().hide().unwrap();
             

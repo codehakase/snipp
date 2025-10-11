@@ -38,14 +38,28 @@ pub fn create_tray_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std
 }
 
 pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Setting up system tray...");
     let menu = create_tray_menu(app)?;
+    println!("Tray menu created successfully");
+    
+    // Force tray to appear on main screen
+    #[cfg(target_os = "macos")]
+    {
+        use cocoa::appkit::{NSApplication, NSApp, NSApplicationActivationPolicy};
+        unsafe {
+            let app = NSApp();
+            app.setActivationPolicy_(NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory);
+        }
+    }
     
     let _tray = TrayIconBuilder::with_id("main")
         .tooltip("Snipp - Screenshot Tool")
         .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .on_tray_icon_event(|_tray, _event| {})
+        .on_tray_icon_event(|tray_handle, event| {
+            tauri_plugin_positioner::on_tray_event(tray_handle.app_handle(), &event);
+        })
         .on_menu_event(move |app, event| {
             match event.id().as_ref() {
                 "open_snipp" => {
@@ -83,6 +97,7 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
         })
         .build(app)?;
 
+    println!("System tray built successfully!");
     Ok(())
 }
 

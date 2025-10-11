@@ -43,22 +43,6 @@ impl ThumbnailGenerator {
         Ok(thumbnail_path.to_string_lossy().to_string())
     }
     
-    #[allow(dead_code)]
-    pub fn generate_thumbnail_from_bytes(&self, image_data: &[u8], filename: &str, max_size: u32) -> Result<String, Box<dyn std::error::Error>> {
-        let thumbnail_filename = format!("thumb_{}_{}.jpg", max_size, filename);
-        let thumbnail_path = self.cache_dir.join(&thumbnail_filename);
-        
-        if thumbnail_path.exists() {
-            return Ok(thumbnail_path.to_string_lossy().to_string());
-        }
-        
-        let img = image::load_from_memory(image_data)?;
-        let thumbnail = self.resize_image(img, max_size);
-        
-        thumbnail.save_with_format(&thumbnail_path, ImageFormat::Jpeg)?;
-        
-        Ok(thumbnail_path.to_string_lossy().to_string())
-    }
     
     pub fn get_thumbnail_base64(&self, image_path: &str, max_size: u32) -> Result<String, Box<dyn std::error::Error>> {
         let thumbnail_path = self.generate_thumbnail(image_path, max_size)?;
@@ -67,13 +51,6 @@ impl ThumbnailGenerator {
         Ok(format!("data:image/jpeg;base64,{}", base64_data))
     }
     
-    #[allow(dead_code)]
-    pub fn get_thumbnail_base64_from_bytes(&self, image_data: &[u8], filename: &str, max_size: u32) -> Result<String, Box<dyn std::error::Error>> {
-        let thumbnail_path = self.generate_thumbnail_from_bytes(image_data, filename, max_size)?;
-        let thumbnail_data = fs::read(&thumbnail_path)?;
-        let base64_data = base64::prelude::BASE64_STANDARD.encode(&thumbnail_data);
-        Ok(format!("data:image/jpeg;base64,{}", base64_data))
-    }
     
     fn resize_image(&self, img: DynamicImage, max_size: u32) -> DynamicImage {
         let (width, height) = img.dimensions();
@@ -92,14 +69,6 @@ impl ThumbnailGenerator {
         img.resize(new_width, new_height, image::imageops::FilterType::Lanczos3)
     }
     
-    #[allow(dead_code)]
-    pub fn clear_cache(&self) -> Result<(), Box<dyn std::error::Error>> {
-        if self.cache_dir.exists() {
-            fs::remove_dir_all(&self.cache_dir)?;
-            fs::create_dir_all(&self.cache_dir)?;
-        }
-        Ok(())
-    }
     
     pub fn remove_thumbnail(&self, image_path: &str, max_size: u32) -> Result<(), Box<dyn std::error::Error>> {
         let source_path = Path::new(image_path);
@@ -123,12 +92,6 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    fn create_test_image() -> Vec<u8> {
-        let img = DynamicImage::new_rgb8(100, 100);
-        let mut buffer = Vec::new();
-        img.write_to(&mut std::io::Cursor::new(&mut buffer), ImageFormat::Png).unwrap();
-        buffer
-    }
 
     fn create_test_thumbnail_generator() -> (ThumbnailGenerator, TempDir) {
         let temp_dir = TempDir::new().expect("Failed to create temp directory");
@@ -157,27 +120,4 @@ mod tests {
         assert!(width == 50 || height == 50);
     }
 
-    #[test]
-    fn test_generate_thumbnail_from_bytes() {
-        let (generator, _temp_dir) = create_test_thumbnail_generator();
-        let test_image = create_test_image();
-        
-        let result = generator.generate_thumbnail_from_bytes(&test_image, "test.png", 64);
-        assert!(result.is_ok());
-        
-        let thumbnail_path = result.unwrap();
-        assert!(Path::new(&thumbnail_path).exists());
-    }
-
-    #[test]
-    fn test_get_thumbnail_base64_from_bytes() {
-        let (generator, _temp_dir) = create_test_thumbnail_generator();
-        let test_image = create_test_image();
-        
-        let result = generator.get_thumbnail_base64_from_bytes(&test_image, "test.png", 64);
-        assert!(result.is_ok());
-        
-        let base64_data = result.unwrap();
-        assert!(base64_data.starts_with("data:image/jpeg;base64,"));
-    }
 }

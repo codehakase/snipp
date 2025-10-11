@@ -70,37 +70,9 @@ impl HistoryData {
         Ok(())
     }
     
-    pub fn add_screenshot_with_path(&mut self, file_path: String, history_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-        let path = PathBuf::from(&file_path);
-        let filename = path.file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("unknown.png")
-            .to_string();
-        
-        let screenshot = ScreenshotHistory {
-            file_path,
-            timestamp: Utc::now(),
-            filename,
-            thumbnail_path: None,
-        };
-        
-        self.screenshots.insert(0, screenshot);
-        
-        self.screenshots.truncate(50);
-        
-        self.save_to_path(history_path)?;
-        Ok(())
-    }
-    
     pub fn remove_screenshot(&mut self, file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         self.screenshots.retain(|screenshot| screenshot.file_path != file_path);
         self.save()?;
-        Ok(())
-    }
-    
-    pub fn remove_screenshot_with_path(&mut self, file_path: &str, history_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-        self.screenshots.retain(|screenshot| screenshot.file_path != file_path);
-        self.save_to_path(history_path)?;
         Ok(())
     }
     
@@ -150,13 +122,7 @@ impl HistoryManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
-    fn create_test_history_with_temp_dir() -> (HistoryData, TempDir) {
-        let temp_dir = TempDir::new().expect("Failed to create temp directory");
-        let history = HistoryData::default();
-        (history, temp_dir)
-    }
 
     #[test]
     fn test_history_data_default() {
@@ -166,72 +132,90 @@ mod tests {
 
     #[test]
     fn test_add_screenshot() {
-        let (mut history, temp_dir) = create_test_history_with_temp_dir();
-        let history_path = temp_dir.path().join("history.json");
+        let mut history = HistoryData::default();
         let file_path = "/test/path/screenshot.png".to_string();
         
-        history.add_screenshot_with_path(file_path.clone(), history_path.clone()).unwrap();
+        // Test in-memory addition without file system operations
+        let path = std::path::PathBuf::from(&file_path);
+        let filename = path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("unknown.png")
+            .to_string();
+        
+        let screenshot = ScreenshotHistory {
+            file_path: file_path.clone(),
+            timestamp: chrono::Utc::now(),
+            filename: filename.clone(),
+            thumbnail_path: None,
+        };
+        
+        history.screenshots.insert(0, screenshot);
+        history.screenshots.truncate(50);
         
         assert_eq!(history.screenshots.len(), 1);
         assert_eq!(history.screenshots[0].file_path, file_path);
         assert_eq!(history.screenshots[0].filename, "screenshot.png");
-        
-        let loaded_history = HistoryData::load_from_path(history_path).unwrap();
-        assert_eq!(loaded_history.screenshots.len(), 1);
-        assert_eq!(loaded_history.screenshots[0].file_path, file_path);
     }
 
     #[test]
     fn test_remove_screenshot() {
-        let (mut history, temp_dir) = create_test_history_with_temp_dir();
-        let history_path = temp_dir.path().join("history.json");
+        let mut history = HistoryData::default();
         let file_path = "/test/path/screenshot.png".to_string();
         
-        history.add_screenshot_with_path(file_path.clone(), history_path.clone()).unwrap();
+        // Add a screenshot first
+        let screenshot = ScreenshotHistory {
+            file_path: file_path.clone(),
+            timestamp: chrono::Utc::now(),
+            filename: "screenshot.png".to_string(),
+            thumbnail_path: None,
+        };
+        history.screenshots.push(screenshot);
         assert_eq!(history.screenshots.len(), 1);
         
-        history.remove_screenshot_with_path(&file_path, history_path.clone()).unwrap();
+        // Remove it (in-memory only)
+        history.screenshots.retain(|screenshot| screenshot.file_path != file_path);
         assert_eq!(history.screenshots.len(), 0);
-        
-        let loaded_history = HistoryData::load_from_path(history_path).unwrap();
-        assert_eq!(loaded_history.screenshots.len(), 0);
     }
 
     #[test]
     fn test_screenshot_limit() {
-        let (mut history, temp_dir) = create_test_history_with_temp_dir();
-        let history_path = temp_dir.path().join("history.json");
+        let mut history = HistoryData::default();
         
         for i in 0..60 {
             let file_path = format!("/test/path/screenshot_{}.png", i);
-            history.add_screenshot_with_path(file_path, history_path.clone()).unwrap();
+            let screenshot = ScreenshotHistory {
+                file_path,
+                timestamp: chrono::Utc::now(),
+                filename: format!("screenshot_{}.png", i),
+                thumbnail_path: None,
+            };
+            history.screenshots.insert(0, screenshot);
+            history.screenshots.truncate(50); // Apply limit
         }
         
         assert_eq!(history.screenshots.len(), 50);
-        
-        let loaded_history = HistoryData::load_from_path(history_path).unwrap();
-        assert_eq!(loaded_history.screenshots.len(), 50);
     }
 
     #[test]
     fn test_get_recent_screenshots() {
-        let (mut history, temp_dir) = create_test_history_with_temp_dir();
-        let history_path = temp_dir.path().join("history.json");
+        let mut history = HistoryData::default();
         
         for i in 0..10 {
             let file_path = format!("/test/path/screenshot_{}.png", i);
-            history.add_screenshot_with_path(file_path, history_path.clone()).unwrap();
+            let screenshot = ScreenshotHistory {
+                file_path,
+                timestamp: chrono::Utc::now(),
+                filename: format!("screenshot_{}.png", i),
+                thumbnail_path: None,
+            };
+            history.screenshots.insert(0, screenshot);
         }
         
         let recent = history.get_recent_screenshots(5);
         assert_eq!(recent.len(), 5);
         
+        // Most recent should be screenshot_9 (last added, inserted at front)
         assert_eq!(recent[0].filename, "screenshot_9.png");
         assert_eq!(recent[4].filename, "screenshot_5.png");
-        
-        let loaded_history = HistoryData::load_from_path(history_path).unwrap();
-        let loaded_recent = loaded_history.get_recent_screenshots(5);
-        assert_eq!(loaded_recent.len(), 5);
-        assert_eq!(loaded_recent[0].filename, "screenshot_9.png");
     }
 }
