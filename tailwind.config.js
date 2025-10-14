@@ -1,31 +1,50 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
-  content: ['./src/**/*.{html,js}'],
-  safelist: [
-    // Button sizing
-    'w-12', 'h-12', 'w-6', 'h-6',
-    // Colors
-    'bg-blue-600', 'bg-blue-700', 'bg-gray-600', 'bg-gray-700', 'bg-red-600', 'bg-red-700', 'bg-green-600',
-    'text-white',
-    // Layout
-    'rounded-full', 'flex', 'items-center', 'justify-center',
-    // Effects
-    'shadow-lg', 'shadow-xl', 'border-2', 'border-white/20', 'border-black/8', 'dark:border-white/8',
-    // Hover states
-    'hover:bg-blue-700', 'hover:bg-gray-700', 'hover:bg-red-700', 'hover:shadow-xl', 'hover:scale-110',
-    // Transitions
-    'transition-all', 'duration-200',
-    // Container classes
-    'w-80', 'w-72', 'h-44', 'mx-auto', 'relative', 'group',
-    'bg-white/95', 'dark:bg-gray-800/95', 'backdrop-blur-xl',
-    'rounded-xl', 'p-4', 'shadow-2xl',
-    'bg-gray-100', 'dark:bg-white/5', 'rounded-lg',
-    // Overlay
-    'absolute', 'inset-0', 'gap-4', 'opacity-0', 'group-hover:opacity-100',
-    'transition-opacity', 'bg-black/40', 'backdrop-blur-sm'
-  ],
+export default {
+  darkMode: ["class"],
+  content: ["./src/**/*.{ts,tsx,html}"],
   theme: {
-    extend: {},
+    extend: {
+      borderRadius: {
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 2px)",
+        sm: "calc(var(--radius) - 4px)",
+      },
+      colors: {
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        primary: {
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+      },
+    },
   },
   plugins: [],
 }

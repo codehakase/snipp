@@ -1,4 +1,4 @@
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{App, AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_dialog::DialogExt;
 use std::path::PathBuf;
@@ -40,6 +40,10 @@ async fn capture_screenshot(
     app_handle: AppHandle,
     _config_state: State<'_, ConfigState>,
 ) -> Result<ScreenshotData, String> {
+    capture_screenshot_internal(app_handle).await
+}
+
+async fn capture_screenshot_internal(app_handle: AppHandle) -> Result<ScreenshotData, String> {
     println!("Starting memory-first screenshot capture...");
     
     let timestamp = std::time::SystemTime::now()
@@ -162,8 +166,13 @@ async fn capture_full_screen(
 async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotData) -> Result<(), String> {
     println!("Creating popup window for screenshot: {}", screenshot_data.filename);
     
-    let cursor_pos = get_cursor_position();
-    println!("Cursor position: {:?}", cursor_pos);
+    // Close existing popup window if it exists
+    if let Some(existing_popup) = app_handle.get_webview_window("popup") {
+        println!("Closing existing popup window");
+        existing_popup.close().map_err(|e| format!("Failed to close existing popup: {}", e))?;
+        // Small delay to ensure cleanup
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
     
     let popup_window = WebviewWindowBuilder::new(
         app_handle,
@@ -171,7 +180,8 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
         WebviewUrl::App("popup.html".into())
     )
     .title("Screenshot Captured")
-    .inner_size(320.0, 320.0)
+    .inner_size(280.0, 200.0)  // Size to fit the preview component
+    .position(1610.0, 850.0)  // Bottom-right position (assuming 1920x1080 screen)
     .decorations(false)
     .transparent(true)
     .always_on_top(true)
@@ -184,48 +194,22 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
     
     println!("Popup window created successfully");
     
-    let popup_width = 320.0;
-    let popup_height = 320.0;
-    let margin = 10.0;
-    let offset = 20.0;
+    popup_window.show()
+        .map_err(|e| format!("Failed to show popup: {}", e))?;
     
-    #[cfg(target_os = "macos")]
-    let (screen_width, screen_height) = unsafe {
-        let screen = cocoa::appkit::NSScreen::mainScreen(cocoa::base::nil);
-        let screen_frame = cocoa::appkit::NSScreen::frame(screen);
-        (screen_frame.size.width, screen_frame.size.height)
-    };
-    
-    #[cfg(not(target_os = "macos"))]
-    let (screen_width, screen_height) = (1920.0, 1080.0);
-    
-    println!("Screen dimensions: {}x{}", screen_width, screen_height);
-    
-    let mut x = cursor_pos.0 + offset;
-    let mut y = cursor_pos.1 + offset;
-    
-    if x + popup_width > screen_width - margin {
-        x = cursor_pos.0 - popup_width - offset;
-    }
-    
-    if y + popup_height > screen_height - margin {
-        y = cursor_pos.1 - popup_height - offset;
-    }
-    
-    x = x.max(margin);
-    y = y.max(margin);
-    
-    println!("Final popup position: x={}, y={} (cursor was at {}, {})", x, y, cursor_pos.0, cursor_pos.1);
-    
-    popup_window.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x: x as i32, y: y as i32 }))
-        .map_err(|e| format!("Failed to position popup: {}", e))?;
-    
-    println!("Waiting 200ms for popup to load...");
-    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+    println!("Waiting 500ms for popup to load...");
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     
     println!("Emitting screenshot-data event to popup");
     popup_window.emit("screenshot-data", screenshot_data)
         .map_err(|e| format!("Failed to emit screenshot data: {}", e))?;
+    
+    // Emit multiple times to ensure React app receives it
+    for i in 1..=3 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        println!("Re-emitting screenshot-data event (attempt {})", i);
+        let _ = popup_window.emit("screenshot-data", screenshot_data);
+    }
     
     println!("Event emitted successfully");
     
@@ -233,6 +217,7 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
 }
 
 #[cfg(target_os = "macos")]
+#[allow(dead_code)]
 fn get_cursor_position() -> (f64, f64) {
     unsafe {
         let _pool = NSAutoreleasePool::new(cocoa::base::nil);
@@ -532,6 +517,44 @@ async fn close_recent_window(app_handle: AppHandle) -> Result<(), String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+fn setup_global_shortcuts(app: &App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
+    let sc_capture_area = "command+shift+4";
+    let sc_capture_screen = "command+shift+3";
+
+    app.handle()
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(move |app, shortcut, event| {
+                    println!("Global shortcut triggered: {:?}, event: {:?}", shortcut, event);
+                    if event.state() == ShortcutState::Pressed {
+                        if shortcut.matches(Modifiers::SUPER | Modifiers::SHIFT, Code::Digit4) {
+                                let app_handle = app.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    if let Err(e) = capture_screenshot_internal(app_handle).await {
+                                        eprintln!("Failed to capture screenshot: {}", e);
+                                    }
+                                });
+                        } else if shortcut.matches(Modifiers::SUPER | Modifiers::SHIFT, Code::Digit3) {
+                                let app_handle = app.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    let config_state = app_handle.state::<ConfigState>();
+                                    if let Err(e) = capture_full_screen(app_handle.clone(), config_state).await {
+                                        eprintln!("Failed to capture full screen: {}", e);
+                                    }
+                                });
+                        }
+                    }
+                })
+                .build(),
+        )?;
+
+    app.global_shortcut().register(sc_capture_area)?;
+    app.global_shortcut().register(sc_capture_screen)?;
+
+    Ok(())
+}
+
 pub fn run() {
     let config_manager = ConfigManager::new().expect("Failed to initialize config manager");
     let history_manager = HistoryManager::new().expect("Failed to initialize history manager");
@@ -539,7 +562,6 @@ pub fn run() {
     
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
@@ -552,6 +574,8 @@ pub fn run() {
             tray::setup_system_tray(app.handle())?;
             
             app.get_webview_window("main").unwrap().hide().unwrap();
+            
+            setup_global_shortcuts(app)?;
             
             Ok(())
         })

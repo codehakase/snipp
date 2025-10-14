@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Screenshot Captured</title>
-  <link rel="stylesheet" href="styles.css">
   <style>
     ::-webkit-scrollbar { display: none; }
     
@@ -13,149 +12,23 @@
       scrollbar-width: none;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
-      background: transparent;
+      background: transparent !important;
       overflow: hidden;
     }
-
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-12px) scale(0.95);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-      }
+    
+    /* Override Tailwind base styles for popup */
+    body {
+      background-color: transparent !important;
+      background: transparent !important;
     }
-
-    @keyframes slideOut {
-      to {
-        opacity: 0;
-        transform: translateY(-8px) scale(0.98);
-      }
+    
+    #root {
+      background: transparent !important;
     }
-
-    .animate-slide-in { animation: slideIn 0.2s ease-out; }
-    .animate-slide-out { animation: slideOut 0.2s ease-in forwards; }
   </style>
 </head>
-<body class="bg-transparent w-screen h-screen flex items-center justify-center p-2">
-  <div class="w-80 bg-white/95 dark:bg-gray-800/95 backdrop-blur-xl border border-black/8 dark:border-white/8 rounded-xl p-4 shadow-2xl animate-slide-in" id="popup">
-    <div class="relative group w-72 h-44 mx-auto">
-      <img class="w-full h-full rounded-lg border border-black/8 dark:border-white/8 bg-gray-100 dark:bg-white/5 object-contain" id="thumbnail" src="" alt="Screenshot preview" />
-      
-      <div class="absolute inset-0 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/40 rounded-lg backdrop-blur-sm">
-        <button class="w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20" id="save-btn" title="Save to Desktop">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/>
-          </svg>
-        </button>
-        
-        <button class="w-12 h-12 bg-gray-600 hover:bg-gray-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20" id="copy-btn" title="Copy to Clipboard">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-          </svg>
-        </button>
-        
-        <button class="w-12 h-12 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 border-2 border-white/20" id="delete-btn" title="Delete Screenshot">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    let currentScreenshotData = null;
-
-    // Setup on load
-    window.addEventListener('DOMContentLoaded', () => {
-      setupEventListeners();
-      setupTauriListener();
-    });
-
-    function setupTauriListener() {
-      if (!window.__TAURI__?.event) return;
-      
-      window.__TAURI__.event.listen('screenshot-data', (event) => {
-        currentScreenshotData = event.payload;
-        loadScreenshot(currentScreenshotData);
-      });
-    }
-
-    function loadScreenshot(data) {
-      const thumbnail = document.getElementById('thumbnail');
-      thumbnail.src = `data:image/png;base64,${data.base64_image}`;
-    }
-
-    function setupEventListeners() {
-      document.getElementById('save-btn')?.addEventListener('click', async () => {
-        if (!currentScreenshotData) return;
-        
-        try {
-          await window.__TAURI__.core.invoke('save_to_disk', { 
-            timestamp: currentScreenshotData.timestamp 
-          });
-          showSuccess('save-btn');
-          setTimeout(closePopup, 200);
-        } catch (error) {
-          console.error('Save failed:', error);
-        }
-      });
-
-      document.getElementById('copy-btn')?.addEventListener('click', async () => {
-        if (!currentScreenshotData) return;
-        
-        try {
-          await window.__TAURI__.core.invoke('copy_to_clipboard', { 
-            timestamp: currentScreenshotData.timestamp 
-          });
-          showSuccess('copy-btn');
-          setTimeout(closePopup, 200);
-        } catch (error) {
-          console.error('Copy failed:', error);
-        }
-      });
-
-      document.getElementById('delete-btn')?.addEventListener('click', async () => {
-        if (!currentScreenshotData) return;
-        
-        try {
-          await window.__TAURI__.core.invoke('delete_from_memory', { 
-            timestamp: currentScreenshotData.timestamp 
-          });
-          showSuccess('delete-btn');
-          setTimeout(closePopup, 200);
-        } catch (error) {
-          console.error('Delete failed:', error);
-        }
-      });
-
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closePopup();
-      });
-    }
-
-    function showSuccess(buttonId) {
-      const btn = document.getElementById(buttonId);
-      btn.innerHTML = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
-      btn.className = 'w-12 h-12 bg-green-600 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white/20';
-    }
-
-    async function closePopup() {
-      const popup = document.getElementById('popup');
-      popup.classList.add('animate-slide-out');
-      
-      setTimeout(async () => {
-        try {
-          await window.__TAURI__.core.invoke('close_popup_window');
-        } catch (error) {
-          console.error('Close failed:', error);
-        }
-      }, 200);
-    }
-  </script>
+<body>
+  <div id="root"></div>
+  <script type="module" src="./popup.tsx"></script>
 </body>
 </html>

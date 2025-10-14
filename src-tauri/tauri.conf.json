@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.ops.snipp",
   "build": {
-    "frontendDist": "../src"
+    "frontendDist": "../dist"
   },
   "app": {
     "withGlobalTauri": true,
@@ -19,10 +19,10 @@
         "center": true
       },
       {
-        "label": "toast",
-        "title": "Toast",
-        "width": 320,
-        "height": 80,
+        "label": "popup",
+        "title": "Screenshot Preview",
+        "width": 1920,
+        "height": 1080,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
@@ -32,7 +32,7 @@
         "minimizable": false,
         "maximizable": false,
         "closable": false,
-        "url": "toast.html"
+        "url": "popup.html"
       }
     ],
     "security": {

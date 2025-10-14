@@ -2,66 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="stylesheet" href="dist/styles.css" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Snipp - Screenshot Tool</title>
-    <script type="module" src="/main.js" defer></script>
   </head>
-
-  <body class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-    <main class="flex flex-col items-center justify-center min-h-screen p-6 max-w-md mx-auto">
-      <header class="text-center mb-8">
-        <h1 class="text-3xl font-bold mb-2">📸 Snipp</h1>
-        <p class="text-lg text-gray-600 dark:text-gray-400">Screenshot Tool for macOS</p>
-      </header>
-      
-      <section aria-live="polite" class="w-full mb-6">
-        <div id="status" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-center text-blue-800 dark:text-blue-200">
-          <p>🔄 Initializing...</p>
-        </div>
-      </section>
-
-      <section class="w-full mb-6">
-        <h2 class="text-xl font-semibold mb-3">How to use:</h2>
-        <ol class="space-y-2 text-left">
-          <li class="flex items-start">
-            <span class="inline-block w-6 h-6 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded-full text-sm font-semibold text-center mr-3 mt-0.5">1</span>
-            Press <kbd class="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm font-mono">⌘⇧2</kbd> anywhere on your system
-          </li>
-          <li class="flex items-start">
-            <span class="inline-block w-6 h-6 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded-full text-sm font-semibold text-center mr-3 mt-0.5">2</span>
-            Drag to select screenshot area
-          </li>
-          <li class="flex items-start">
-            <span class="inline-block w-6 h-6 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded-full text-sm font-semibold text-center mr-3 mt-0.5">3</span>
-            Screenshot will be saved to Desktop
-          </li>
-          <li class="flex items-start">
-            <span class="inline-block w-6 h-6 bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 rounded-full text-sm font-semibold text-center mr-3 mt-0.5">4</span>
-            Toast notification will confirm capture
-          </li>
-        </ol>
-      </section>
-
-      <section class="w-full mb-6">
-        <div class="flex flex-col sm:flex-row gap-3">
-          <button id="test-screenshot" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200">
-            Test Screenshot
-          </button>
-          <button id="preferences-btn" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200">
-            Preferences
-          </button>
-          <button id="hide-window" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200">
-            Hide Window
-          </button>
-        </div>
-      </section>
-
-      <footer class="w-full">
-        <div id="info" class="bg-gray-100 dark:bg-gray-800 rounded-lg p-3 text-center text-sm text-gray-600 dark:text-gray-400">
-          <p>Press the global hotkey or use the test button above</p>
-        </div>
-      </footer>
-    </main>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
   </body>
 </html>
