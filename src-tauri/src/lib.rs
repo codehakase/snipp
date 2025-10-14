@@ -519,8 +519,8 @@ async fn close_recent_window(app_handle: AppHandle) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 fn setup_global_shortcuts(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
-    let sc_capture_area = "command+shift+4";
-    let sc_capture_screen = "command+shift+3";
+    let sc_capture_area = "command+shift+s";
+    let sc_capture_screen = "command+shift+f";
 
     app.handle()
         .plugin(
@@ -528,14 +528,14 @@ fn setup_global_shortcuts(app: &App) -> Result<(), Box<dyn std::error::Error>> {
                 .with_handler(move |app, shortcut, event| {
                     println!("Global shortcut triggered: {:?}, event: {:?}", shortcut, event);
                     if event.state() == ShortcutState::Pressed {
-                        if shortcut.matches(Modifiers::SUPER | Modifiers::SHIFT, Code::Digit4) {
+                        if shortcut.matches(Modifiers::SUPER | Modifiers::SHIFT, Code::KeyS) {
                                 let app_handle = app.clone();
                                 tauri::async_runtime::spawn(async move {
                                     if let Err(e) = capture_screenshot_internal(app_handle).await {
                                         eprintln!("Failed to capture screenshot: {}", e);
                                     }
                                 });
-                        } else if shortcut.matches(Modifiers::SUPER | Modifiers::SHIFT, Code::Digit3) {
+                        } else if shortcut.matches(Modifiers::SUPER | Modifiers::SHIFT, Code::KeyF) {
                                 let app_handle = app.clone();
                                 tauri::async_runtime::spawn(async move {
                                     let config_state = app_handle.state::<ConfigState>();
@@ -571,6 +571,10 @@ pub fn run() {
         .manage(HistoryState::new(history_manager))
         .manage(ThumbnailState::new(thumbnail_generator))
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            }
             tray::setup_system_tray(app.handle())?;
             
             app.get_webview_window("main").unwrap().hide().unwrap();

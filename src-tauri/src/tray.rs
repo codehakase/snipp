@@ -2,6 +2,7 @@ use tauri::{
     AppHandle, Manager,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
+    image::Image,
 };
 use tauri_plugin_opener::OpenerExt;
 
@@ -12,13 +13,13 @@ use crate::ConfigState;
 pub fn create_tray_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
     let open_snipp = MenuItem::with_id(app, "open_snipp", "Open Snipp", true, None::<&str>)?;
     let separator1 = PredefinedMenuItem::separator(app)?;
-    let capture_screen = MenuItem::with_id(app, "capture_screen", "Capture Screen", true, Some("⌘⇧3"))?;
-    let capture_area = MenuItem::with_id(app, "capture_area", "Capture Area", true, Some("⌘⇧4"))?;
+    let capture_screen = MenuItem::with_id(app, "capture_screen", "Capture Screen", true, Some("Cmd+Shift+f"))?;
+    let capture_area = MenuItem::with_id(app, "capture_area", "Capture Area", true, Some("Cmd+Shift+s"))?;
     let separator2 = PredefinedMenuItem::separator(app)?;
     let suggest_feature = MenuItem::with_id(app, "suggest_feature", "Suggest a Feature", true, None::<&str>)?;
     let report_bug = MenuItem::with_id(app, "report_bug", "Report a Bug", true, None::<&str>)?;
     let separator3 = PredefinedMenuItem::separator(app)?;
-    let preferences = MenuItem::with_id(app, "preferences", "Preferences...", true, Some("⌘,"))?;
+    let preferences = MenuItem::with_id(app, "preferences", "Preferences...", true, Some("Cmd+,"))?;
     let quit = PredefinedMenuItem::quit(app, Some("Quit Snipp"))?;
 
     let menu = Menu::with_items(app, &[
@@ -42,19 +43,15 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
     let menu = create_tray_menu(app)?;
     println!("Tray menu created successfully");
     
-    // Force tray to appear on main screen
-    #[cfg(target_os = "macos")]
-    {
-        use cocoa::appkit::{NSApplication, NSApp, NSApplicationActivationPolicy};
-        unsafe {
-            let app = NSApp();
-            app.setActivationPolicy_(NSApplicationActivationPolicy::NSApplicationActivationPolicyAccessory);
-        }
-    }
+    let icon_bytes = include_bytes!("../icons/AppIcon-32.png");
+    let image_data = image::load_from_memory(icon_bytes)?;
+    let rgba_data = image_data.to_rgba8();
+    let (width, height) = (rgba_data.width(), rgba_data.height());
+    let icon = Image::new_owned(rgba_data.into_raw(), width, height);
     
     let _tray = TrayIconBuilder::with_id("main")
         .tooltip("Snipp - Screenshot Tool")
-        .icon(app.default_window_icon().unwrap().clone())
+        .icon(icon)
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_tray_icon_event(|tray_handle, event| {
@@ -105,6 +102,7 @@ fn show_main_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(window) = app.get_webview_window("main") {
         window.show()?;
         window.set_focus()?;
+        window.center()?;
     }
     Ok(())
 }
@@ -132,16 +130,17 @@ fn trigger_area_capture(app: &AppHandle) -> Result<(), Box<dyn std::error::Error
 }
 
 fn open_url_with_app(app: &AppHandle, url: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let app_handle = app.clone();
-    let url = url.to_string();
-    
-    tauri::async_runtime::spawn(async move {
-        if let Err(e) = app_handle.opener().open_url(&url, None::<&str>) {
-            eprintln!("Failed to open URL: {}", e);
+    println!("Attempting to open URL: {}", url);
+
+    match app.opener().open_url(url, None::<&str>) {
+        Ok(_) => {
+            Ok(())
         }
-    });
-    
-    Ok(())
+        Err(e) => {
+            eprintln!("Failed to open URL {}: {}", url, e);
+            Err(Box::new(e))
+        }
+    }
 }
 
 fn show_preferences_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {

@@ -10,6 +10,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "tauri:build-debug": "tauri build --debug",
+    "tauri:install-debug": "npm run tauri:build-debug && cp -r src-tauri/target/debug/bundle/macos/Snipp.app /Applications/Snipp-Debug.app",
     "test": "jest"
   },
   "devDependencies": {
