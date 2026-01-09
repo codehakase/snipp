@@ -5,7 +5,7 @@ import { ToolSettings } from './ToolSettings';
 import { PaddingControls } from './PaddingControls';
 import { useEditor } from '@/hooks/useEditor';
 import { invoke } from '@/lib/tauri';
-import { Save, Copy, X } from 'lucide-react';
+import { Save, Copy, X, Settings2 } from 'lucide-react';
 
 export type ToolType = 'select' | 'rect' | 'ellipse' | 'arrow' | 'line' | 'text' | 'blur';
 
@@ -17,7 +17,7 @@ export interface EditorState {
   padding: { top: number; right: number; bottom: number; left: number };
   backgroundColor: string;
   borderRadius: number;
-  zoom: number; // 0.25 to 2, where 1 = 100%
+  zoom: number; // 0.1 to 2, where 1 = 100%
 }
 
 export function EditorApp() {
@@ -34,15 +34,17 @@ export function EditorApp() {
     strokeWidth: 3,
     fontSize: 24,
     padding: { top: 32, right: 32, bottom: 32, left: 32 },
-    backgroundColor: '#ffffff',
+    backgroundColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     borderRadius: 12,
-    zoom: -1, // Fit mode by default (works well for Retina displays)
+    zoom: 0, // 0 = auto-fit (will be calculated)
   });
 
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const sidebarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Track container size for proper "Fit" zoom calculation
+  // Track container size
   useEffect(() => {
     const container = canvasContainerRef.current;
     if (!container) return;
@@ -60,6 +62,15 @@ export function EditorApp() {
     resizeObserver.observe(container);
 
     return () => resizeObserver.disconnect();
+  }, []);
+
+  // Cleanup sidebar timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (sidebarTimeoutRef.current) {
+        clearTimeout(sidebarTimeoutRef.current);
+      }
+    };
   }, []);
 
   const handleToolChange = useCallback((tool: ToolType) => {
@@ -91,7 +102,26 @@ export function EditorApp() {
   }, []);
 
   const handleZoomChange = useCallback((zoom: number) => {
-    setEditorState(prev => ({ ...prev, zoom: Math.max(0.25, Math.min(2, zoom)) }));
+    setEditorState(prev => ({ ...prev, zoom: Math.max(0.1, Math.min(2, zoom)) }));
+  }, []);
+
+  const handleZoomCalculated = useCallback((zoom: number) => {
+    // Set initial zoom when canvas calculates fit zoom
+    setEditorState(prev => ({ ...prev, zoom }));
+  }, []);
+
+  const handleSidebarMouseEnter = useCallback(() => {
+    if (sidebarTimeoutRef.current) {
+      clearTimeout(sidebarTimeoutRef.current);
+      sidebarTimeoutRef.current = null;
+    }
+    setIsSidebarOpen(true);
+  }, []);
+
+  const handleSidebarMouseLeave = useCallback(() => {
+    sidebarTimeoutRef.current = setTimeout(() => {
+      setIsSidebarOpen(false);
+    }, 300);
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -203,30 +233,55 @@ export function EditorApp() {
         />
 
         {/* Canvas Area */}
-        <div 
+        <div
           ref={canvasContainerRef}
-          className="flex-1 overflow-auto flex items-center justify-center p-8"
+          className="flex-1 overflow-auto flex items-center justify-center p-8 bg-neutral-900"
         >
           <AnnotationCanvas
             ref={canvasRef}
             imageData={imageData}
             editorState={editorState}
             containerSize={containerSize}
+            onZoomCalculated={handleZoomCalculated}
           />
         </div>
 
-        {/* Right Panel - Padding & Background */}
-        <div className="w-64 bg-neutral-800 border-l border-neutral-700 p-4 overflow-y-auto">
-          <PaddingControls
-            padding={editorState.padding}
-            backgroundColor={editorState.backgroundColor}
-            borderRadius={editorState.borderRadius}
-            zoom={editorState.zoom}
-            onPaddingChange={handlePaddingChange}
-            onBackgroundColorChange={handleBackgroundColorChange}
-            onBorderRadiusChange={handleBorderRadiusChange}
-            onZoomChange={handleZoomChange}
-          />
+        {/* Right Panel - Collapsible Sidebar */}
+        <div
+          className="relative"
+          onMouseEnter={handleSidebarMouseEnter}
+          onMouseLeave={handleSidebarMouseLeave}
+        >
+          {/* Hover trigger zone (visible when collapsed) */}
+          <div
+            className={`absolute right-0 top-0 h-full w-10 flex items-center justify-center transition-opacity ${
+              isSidebarOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            }`}
+          >
+            <div className="bg-neutral-800 border border-neutral-700 rounded-l-lg p-2 cursor-pointer hover:bg-neutral-700 transition-colors">
+              <Settings2 size={18} className="text-neutral-400" />
+            </div>
+          </div>
+
+          {/* Sidebar panel */}
+          <div
+            className={`h-full bg-neutral-800 border-l border-neutral-700 overflow-hidden transition-all duration-200 ease-out ${
+              isSidebarOpen ? 'w-64 opacity-100' : 'w-0 opacity-0'
+            }`}
+          >
+            <div className="w-64 p-4 overflow-y-auto h-full">
+              <PaddingControls
+                padding={editorState.padding}
+                backgroundColor={editorState.backgroundColor}
+                borderRadius={editorState.borderRadius}
+                zoom={editorState.zoom}
+                onPaddingChange={handlePaddingChange}
+                onBackgroundColorChange={handleBackgroundColorChange}
+                onBorderRadiusChange={handleBorderRadiusChange}
+                onZoomChange={handleZoomChange}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -6,12 +6,14 @@ interface AnnotationCanvasProps {
   imageData: string;
   editorState: EditorState;
   containerSize: { width: number; height: number };
+  onZoomCalculated?: (zoom: number) => void;
 }
 
 export interface CanvasRef {
   exportToDataURL: () => string | null;
   undo: () => void;
   redo: () => void;
+  setZoom: (zoom: number) => void;
 }
 
 // Parse CSS gradient to Fabric gradient
@@ -46,7 +48,7 @@ function parseGradient(cssGradient: string, width: number, height: number): fabr
 }
 
 export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
-  ({ imageData, editorState, containerSize }, ref) => {
+  ({ imageData, editorState, containerSize, onZoomCalculated }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<fabric.Canvas | null>(null);
     const imageRef = useRef<fabric.FabricImage | null>(null);
@@ -54,48 +56,62 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
     const [isDrawing, setIsDrawing] = useState(false);
     const startPointRef = useRef<{ x: number; y: number } | null>(null);
     const activeShapeRef = useRef<fabric.Object | null>(null);
-    const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+    const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+    const [originalImageSize, setOriginalImageSize] = useState({ width: 0, height: 0 });
     const isInitializedRef = useRef(false);
+    const isMountedRef = useRef(true);
+    const hasCalculatedInitialZoomRef = useRef(false);
 
     // Initialize Fabric canvas and load image
     useEffect(() => {
       if (!canvasRef.current || isInitializedRef.current) return;
       isInitializedRef.current = true;
+      isMountedRef.current = true;
 
       const canvas = new fabric.Canvas(canvasRef.current, {
         selection: editorState.tool === 'select',
         preserveObjectStacking: true,
+        // Disable Fabric's retina scaling - we handle this ourselves
+        enableRetinaScaling: false,
       });
 
       fabricRef.current = canvas;
 
       // Load the screenshot image
       fabric.FabricImage.fromURL(`data:image/png;base64,${imageData}`).then((img) => {
+        // Skip if component was unmounted during async load
+        if (!isMountedRef.current || !fabricRef.current) {
+          console.log('[AnnotationCanvas] Skipping - component unmounted during image load');
+          return;
+        }
+
         const imgWidth = img.width || 800;
         const imgHeight = img.height || 600;
 
-        setImageSize({ width: imgWidth, height: imgHeight });
+        console.log('[AnnotationCanvas] Image loaded:', { imgWidth, imgHeight });
+
+        // Store original image size for later calculations
+        setOriginalImageSize({ width: imgWidth, height: imgHeight });
         imageRef.current = img;
 
         // Calculate canvas size with padding
         const { padding, backgroundColor, borderRadius } = editorState;
-        const canvasWidth = imgWidth + padding.left + padding.right;
-        const canvasHeight = imgHeight + padding.top + padding.bottom;
+        const fullCanvasWidth = imgWidth + padding.left + padding.right;
+        const fullCanvasHeight = imgHeight + padding.top + padding.bottom;
 
-        // Set canvas dimensions
-        canvas.setDimensions({ width: canvasWidth, height: canvasHeight });
+        console.log('[AnnotationCanvas] Canvas dimensions:', { fullCanvasWidth, fullCanvasHeight });
 
         // Create background rectangle (full canvas size)
         const isGradient = backgroundColor.startsWith('linear-gradient');
         const bgFill = isGradient
-          ? parseGradient(backgroundColor, canvasWidth, canvasHeight)
+          ? parseGradient(backgroundColor, fullCanvasWidth, fullCanvasHeight)
           : backgroundColor;
 
         const bgRect = new fabric.Rect({
           left: 0,
           top: 0,
-          width: canvasWidth,
-          height: canvasHeight,
+          width: fullCanvasWidth,
+          height: fullCanvasHeight,
           fill: bgFill || backgroundColor,
           selectable: false,
           evented: false,
@@ -123,6 +139,8 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         img.set({
           left: padding.left,
           top: padding.top,
+          scaleX: 1,
+          scaleY: 1,
           selectable: false,
           evented: false,
           originX: 'left',
@@ -134,17 +152,64 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
 
         // Ensure background is at the back
         canvas.sendObjectToBack(bgRect);
+
+        // Set initial canvas size - zoom will be calculated by dedicated effect
+        canvas.setDimensions({ width: fullCanvasWidth, height: fullCanvasHeight });
+        setCanvasSize({ width: fullCanvasWidth, height: fullCanvasHeight });
+
         canvas.renderAll();
       });
 
       return () => {
+        isMountedRef.current = false;
         canvas.dispose();
         fabricRef.current = null;
         imageRef.current = null;
         bgRectRef.current = null;
         isInitializedRef.current = false;
+        hasCalculatedInitialZoomRef.current = false;
+        setOriginalImageSize({ width: 0, height: 0 });
+        setCanvasSize({ width: 0, height: 0 });
       };
     }, [imageData]);
+
+    // Calculate initial zoom when both containerSize and canvasSize become available
+    useEffect(() => {
+      const canvas = fabricRef.current;
+
+      // Skip if already calculated or sizes not ready
+      if (hasCalculatedInitialZoomRef.current) return;
+      if (!canvas || canvasSize.width === 0 || canvasSize.height === 0) return;
+      if (containerSize.width === 0 || containerSize.height === 0) return;
+
+      const availableWidth = containerSize.width - 64;
+      const availableHeight = containerSize.height - 64;
+      const scaleX = availableWidth / canvasSize.width;
+      const scaleY = availableHeight / canvasSize.height;
+      const fitZoom = Math.min(scaleX, scaleY, 1);
+
+      console.log('[AnnotationCanvas] Initial zoom calculation:', {
+        containerSize,
+        canvasSize,
+        availableWidth,
+        availableHeight,
+        scaleX,
+        scaleY,
+        fitZoom
+      });
+
+      canvas.setZoom(fitZoom);
+      canvas.setDimensions({
+        width: canvasSize.width * fitZoom,
+        height: canvasSize.height * fitZoom,
+      });
+      canvas.renderAll();
+
+      hasCalculatedInitialZoomRef.current = true;
+      if (onZoomCalculated) {
+        onZoomCalculated(fitZoom);
+      }
+    }, [containerSize, canvasSize, onZoomCalculated]);
 
     // Update canvas when padding, background, or border radius changes
     useEffect(() => {
@@ -152,25 +217,39 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       const img = imageRef.current;
       const bgRect = bgRectRef.current;
 
-      if (!canvas || !img || !bgRect || imageSize.width === 0) return;
+      // Need original image size to calculate new canvas dimensions
+      if (!canvas || !img || !bgRect || originalImageSize.width === 0) return;
 
+      const imgWidth = originalImageSize.width;
+      const imgHeight = originalImageSize.height;
       const { padding, backgroundColor, borderRadius } = editorState;
-      const canvasWidth = imageSize.width + padding.left + padding.right;
-      const canvasHeight = imageSize.height + padding.top + padding.bottom;
+      const fullCanvasWidth = imgWidth + padding.left + padding.right;
+      const fullCanvasHeight = imgHeight + padding.top + padding.bottom;
 
-      // Update canvas size
-      canvas.setDimensions({ width: canvasWidth, height: canvasHeight });
+      console.log('[AnnotationCanvas] Updating canvas:', {
+        padding,
+        borderRadius,
+        fullCanvasWidth,
+        fullCanvasHeight
+      });
+
+      // Store current zoom
+      const currentZoom = canvas.getZoom();
+
+      // Update internal canvas size (at zoom 1)
+      setCanvasSize({ width: fullCanvasWidth, height: fullCanvasHeight });
 
       // Update background rectangle
       const isGradient = backgroundColor.startsWith('linear-gradient');
       const bgFill = isGradient
-        ? parseGradient(backgroundColor, canvasWidth, canvasHeight)
+        ? parseGradient(backgroundColor, fullCanvasWidth, fullCanvasHeight)
         : backgroundColor;
 
       bgRect.set({
-        width: canvasWidth,
-        height: canvasHeight,
+        width: fullCanvasWidth,
+        height: fullCanvasHeight,
         fill: bgFill || backgroundColor,
+        dirty: true,
       });
       bgRect.setCoords();
 
@@ -178,27 +257,48 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       img.set({
         left: padding.left,
         top: padding.top,
+        dirty: true,
       });
 
       // Update clip path for border radius
       if (borderRadius > 0) {
         const clipPath = new fabric.Rect({
-          width: imageSize.width,
-          height: imageSize.height,
+          width: imgWidth,
+          height: imgHeight,
           rx: borderRadius,
           ry: borderRadius,
           originX: 'center',
           originY: 'center',
         });
-        img.set({ clipPath });
+        img.set({ clipPath, dirty: true });
       } else {
-        img.set({ clipPath: undefined });
+        img.set({ clipPath: undefined, dirty: true });
       }
+      img.setCoords();
+
+      // Update canvas element size with zoom
+      canvas.setDimensions({
+        width: fullCanvasWidth * currentZoom,
+        height: fullCanvasHeight * currentZoom,
+      });
 
       // Ensure background stays at the back
       canvas.sendObjectToBack(bgRect);
+      canvas.requestRenderAll();
+    }, [editorState.padding, editorState.backgroundColor, editorState.borderRadius, originalImageSize]);
+
+    // Handle zoom changes
+    useEffect(() => {
+      const canvas = fabricRef.current;
+      if (!canvas || canvasSize.width === 0 || editorState.zoom <= 0) return;
+
+      canvas.setZoom(editorState.zoom);
+      canvas.setDimensions({
+        width: canvasSize.width * editorState.zoom,
+        height: canvasSize.height * editorState.zoom,
+      });
       canvas.renderAll();
-    }, [editorState.padding, editorState.backgroundColor, editorState.borderRadius, imageSize]);
+    }, [editorState.zoom, canvasSize]);
 
     // Update selection mode based on tool
     useEffect(() => {
@@ -399,12 +499,30 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
       exportToDataURL: () => {
-        if (!fabricRef.current) return null;
-        return fabricRef.current.toDataURL({
+        if (!fabricRef.current || canvasSize.width === 0) return null;
+
+        // Temporarily reset zoom for full-resolution export
+        const currentZoom = fabricRef.current.getZoom();
+        fabricRef.current.setZoom(1);
+        fabricRef.current.setDimensions({
+          width: canvasSize.width,
+          height: canvasSize.height,
+        });
+
+        const dataURL = fabricRef.current.toDataURL({
           format: 'png',
           quality: 1,
           multiplier: 1,
         });
+
+        // Restore zoom
+        fabricRef.current.setZoom(currentZoom);
+        fabricRef.current.setDimensions({
+          width: canvasSize.width * currentZoom,
+          height: canvasSize.height * currentZoom,
+        });
+
+        return dataURL;
       },
       undo: () => {
         // TODO: Implement undo with history stack
@@ -412,52 +530,20 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       redo: () => {
         // TODO: Implement redo with history stack
       },
+      setZoom: (zoom: number) => {
+        if (!fabricRef.current || canvasSize.width === 0) return;
+        fabricRef.current.setZoom(zoom);
+        fabricRef.current.setDimensions({
+          width: canvasSize.width * zoom,
+          height: canvasSize.height * zoom,
+        });
+        fabricRef.current.renderAll();
+      },
     }));
 
-    // Calculate canvas dimensions with padding
-    const { padding } = editorState;
-    const canvasWidth = imageSize.width + padding.left + padding.right;
-    const canvasHeight = imageSize.height + padding.top + padding.bottom;
-
-    // Calculate display zoom - "Fit" mode (zoom < 0) calculates scale to fit container
-    const calculateFitZoom = () => {
-      if (containerSize.width === 0 || containerSize.height === 0 || canvasWidth === 0 || canvasHeight === 0) {
-        return 0.5; // Fallback
-      }
-      // Leave some padding around the canvas in the container
-      const availableWidth = containerSize.width - 64;
-      const availableHeight = containerSize.height - 64;
-      
-      const scaleX = availableWidth / canvasWidth;
-      const scaleY = availableHeight / canvasHeight;
-      
-      // Use the smaller scale to ensure it fits, cap at 1 (don't upscale)
-      return Math.min(scaleX, scaleY, 1);
-    };
-
-    const displayZoom = editorState.zoom < 0 ? calculateFitZoom() : editorState.zoom;
-
-    // Calculate wrapper dimensions to prevent clipping
-    const wrapperWidth = canvasWidth * displayZoom;
-    const wrapperHeight = canvasHeight * displayZoom;
-
     return (
-      <div
-        className="shadow-2xl rounded-lg overflow-hidden"
-        style={{
-          width: wrapperWidth || 'auto',
-          height: wrapperHeight || 'auto',
-          minWidth: wrapperWidth || 'auto',
-          minHeight: wrapperHeight || 'auto',
-        }}
-      >
-        <canvas 
-          ref={canvasRef} 
-          style={{
-            transform: `scale(${displayZoom})`,
-            transformOrigin: 'top left',
-          }}
-        />
+      <div className="shadow-2xl rounded-lg overflow-hidden">
+        <canvas ref={canvasRef} />
       </div>
     );
   }

@@ -54,7 +54,7 @@ const zoomPresets = [
   { label: '25%', value: 0.25 },
   { label: '50%', value: 0.5 },
   { label: '100%', value: 1 },
-  { label: 'Fit', value: -1 }, // Special value for auto-fit
+  { label: '200%', value: 2 },
 ];
 
 export function PaddingControls({
@@ -89,7 +89,7 @@ export function PaddingControls({
               key={label}
               onClick={() => onZoomChange(value)}
               className={`flex-1 py-1.5 text-xs rounded transition-colors ${
-                zoom === value
+                Math.abs(zoom - value) < 0.01
                   ? 'bg-blue-600 text-white'
                   : 'bg-neutral-700 text-neutral-300 hover:bg-neutral-600'
               }`}
@@ -101,15 +101,15 @@ export function PaddingControls({
         <div className="flex items-center gap-3">
           <input
             type="range"
-            min="0.25"
+            min="0.1"
             max="2"
             step="0.05"
-            value={zoom < 0 ? 1 : zoom}
+            value={zoom}
             onChange={(e) => onZoomChange(Number(e.target.value))}
             className="flex-1 h-1 bg-neutral-600 rounded-full appearance-none cursor-pointer"
           />
           <span className="text-xs text-neutral-300 w-12 text-right">
-            {zoom < 0 ? 'Fit' : `${Math.round(zoom * 100)}%`}
+            {Math.round(zoom * 100)}%
           </span>
         </div>
       </div>
