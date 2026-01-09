@@ -33,6 +33,18 @@
         "maximizable": false,
         "closable": false,
         "url": "popup.html"
+      },
+      {
+        "label": "editor",
+        "title": "Snipp Editor",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true,
+        "visible": false,
+        "resizable": true,
+        "url": "editor.html"
       }
     ],
     "security": {

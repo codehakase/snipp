@@ -165,7 +165,7 @@ async fn capture_full_screen(
 
 async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotData) -> Result<(), String> {
     println!("Creating popup window for screenshot: {}", screenshot_data.filename);
-    
+
     // Close existing popup window if it exists
     if let Some(existing_popup) = app_handle.get_webview_window("popup") {
         println!("Closing existing popup window");
@@ -173,15 +173,32 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
         // Small delay to ensure cleanup
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }
-    
+
+    // Calculate bottom-left position with padding
+    let popup_width = 280.0;
+    let popup_height = 200.0;
+    let padding = 20.0;
+
+    // Get primary monitor size for proper positioning
+    let (x_position, y_position) = if let Some(monitor) = app_handle.primary_monitor().ok().flatten() {
+        let screen_size = monitor.size();
+        let scale_factor = monitor.scale_factor();
+        let screen_height = screen_size.height as f64 / scale_factor;
+        // Bottom-left position with padding from edges
+        (padding, screen_height - popup_height - padding - 50.0) // 50px extra for dock
+    } else {
+        // Fallback position
+        (padding, 600.0)
+    };
+
     let popup_window = WebviewWindowBuilder::new(
         app_handle,
         "popup",
         WebviewUrl::App("popup.html".into())
     )
     .title("Screenshot Captured")
-    .inner_size(280.0, 200.0)  // Size to fit the preview component
-    .position(1610.0, 850.0)  // Bottom-right position (assuming 1920x1080 screen)
+    .inner_size(popup_width, popup_height)
+    .position(x_position, y_position)
     .decorations(false)
     .transparent(true)
     .always_on_top(true)
@@ -516,6 +533,160 @@ async fn close_recent_window(app_handle: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+async fn open_editor_window(
+    app_handle: AppHandle,
+    timestamp: u64,
+) -> Result<(), String> {
+    println!("Opening editor window for screenshot: {}", timestamp);
+
+    // Get screenshot data from cache
+    let cache_key = timestamp.to_string();
+    let image_data = {
+        let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        let cache_guard = cache.lock().unwrap();
+        cache_guard.get(&cache_key).cloned()
+    };
+
+    let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
+    let base64_image = base64::prelude::BASE64_STANDARD.encode(&image_data);
+
+    // Close existing editor if open
+    if let Some(existing_editor) = app_handle.get_webview_window("editor") {
+        existing_editor.close().map_err(|e| format!("Failed to close existing editor: {}", e))?;
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+    }
+
+    // Create editor window
+    let editor_window = WebviewWindowBuilder::new(
+        &app_handle,
+        "editor",
+        WebviewUrl::App("editor.html".into())
+    )
+    .title("Snipp Editor")
+    .inner_size(1200.0, 800.0)
+    .min_inner_size(800.0, 600.0)
+    .center()
+    .resizable(true)
+    .build()
+    .map_err(|e| format!("Failed to create editor window: {}", e))?;
+
+    editor_window.show().map_err(|e| format!("Failed to show editor: {}", e))?;
+
+    // Wait for window to load
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // Create editor data struct and emit
+    let editor_data = serde_json::json!({
+        "base64_image": base64_image,
+        "timestamp": timestamp,
+    });
+
+    editor_window.emit("editor-data", &editor_data)
+        .map_err(|e| format!("Failed to emit editor data: {}", e))?;
+
+    // Re-emit to ensure React receives it
+    for _ in 1..=3 {
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        let _ = editor_window.emit("editor-data", &editor_data);
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn close_editor_window(app_handle: AppHandle) -> Result<(), String> {
+    if let Some(editor_window) = app_handle.get_webview_window("editor") {
+        editor_window.close()
+            .map_err(|e| format!("Failed to close editor: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn save_edited_screenshot(
+    app_handle: AppHandle,
+    base64_image: String,
+    timestamp: u64,
+    config_state: State<'_, ConfigState>,
+    history_state: State<'_, HistoryState>,
+) -> Result<String, String> {
+    println!("Saving edited screenshot: {}", timestamp);
+
+    let save_location = {
+        let config = config_state.lock().unwrap();
+        config.get_config().default_save_location.clone()
+    };
+
+    // Decode base64 image
+    let image_data = base64::prelude::BASE64_STANDARD
+        .decode(&base64_image)
+        .map_err(|e| format!("Failed to decode image: {}", e))?;
+
+    let filename = format!("snipp-edited-{}.png", timestamp);
+    let file_path = std::path::PathBuf::from(&save_location).join(&filename);
+
+    if let Some(parent) = file_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create save directory: {}", e))?;
+    }
+
+    std::fs::write(&file_path, &image_data)
+        .map_err(|e| format!("Failed to save file: {}", e))?;
+
+    let file_path_str = file_path.to_string_lossy().to_string();
+    println!("Successfully saved edited screenshot to: {}", file_path_str);
+
+    // Add to history
+    {
+        let mut history = history_state.lock().unwrap();
+        if let Err(e) = history.add_screenshot(file_path_str.clone()) {
+            eprintln!("Failed to add screenshot to history: {}", e);
+        }
+    }
+
+    // Close editor after save
+    if let Some(editor_window) = app_handle.get_webview_window("editor") {
+        let _ = editor_window.close();
+    }
+
+    Ok(file_path_str)
+}
+
+#[tauri::command]
+async fn copy_edited_screenshot(
+    base64_image: String,
+    timestamp: u64,
+) -> Result<(), String> {
+    println!("Copying edited screenshot to clipboard");
+
+    let image_data = base64::prelude::BASE64_STANDARD
+        .decode(&base64_image)
+        .map_err(|e| format!("Failed to decode image: {}", e))?;
+
+    let temp_path = std::env::temp_dir().join(format!("snipp_edited_{}.png", timestamp));
+    std::fs::write(&temp_path, &image_data)
+        .map_err(|e| format!("Failed to write temp file: {}", e))?;
+
+    let shell_command = format!("osascript -e 'set the clipboard to (read (POSIX file \"{}\") as JPEG picture)'", temp_path.to_string_lossy());
+
+    let output = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(&shell_command)
+        .output()
+        .map_err(|e| format!("Failed to execute clipboard command: {}", e))?;
+
+    let _ = std::fs::remove_file(&temp_path);
+
+    if output.status.success() {
+        println!("Successfully copied edited screenshot to clipboard");
+        Ok(())
+    } else {
+        let error = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Clipboard operation failed: {}", error))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 fn setup_global_shortcuts(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
@@ -599,7 +770,11 @@ pub fn run() {
             copy_screenshot_from_path,
             open_in_finder,
             delete_screenshot,
-            close_recent_window
+            close_recent_window,
+            open_editor_window,
+            close_editor_window,
+            save_edited_screenshot,
+            copy_edited_screenshot
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
