@@ -78,6 +78,19 @@ export const useScreenshot = () => {
     }
   };
 
+  const openEditor = async () => {
+    if (!currentScreenshot) return;
+    setIsLoading(true);
+    try {
+      await invoke('open_editor_window', { timestamp: currentScreenshot.timestamp });
+      await invoke('close_popup_window');
+    } catch (error) {
+      console.error('Failed to open editor:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const testScreenshot = async () => {
     setIsLoading(true);
     try {
@@ -96,6 +109,7 @@ export const useScreenshot = () => {
     copyScreenshot,
     deleteScreenshot,
     closePopup,
+    openEditor,
     testScreenshot,
   };
 };

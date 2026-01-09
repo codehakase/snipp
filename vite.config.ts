@@ -18,6 +18,7 @@ export default defineConfig({
       input: {
         index: resolve(__dirname, 'src/index.html'),
         popup: resolve(__dirname, 'src/popup.html'),
+        editor: resolve(__dirname, 'src/editor.html'),
       },
     },
   },

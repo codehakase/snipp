@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Save, Copy, Trash2, X } from 'lucide-react';
+import { Save, Copy, Trash2, X, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useScreenshot } from '@/hooks/useScreenshot';
 
@@ -8,17 +8,19 @@ interface ScreenshotPreviewProps {
   onSave?: () => void;
   onCopy?: () => void;
   onDelete?: () => void;
+  onEdit?: () => void;
   onClose?: () => void;
   className?: string;
 }
 
-export function ScreenshotPreview({ 
-  imageUrl, 
-  onSave, 
-  onCopy, 
-  onDelete, 
+export function ScreenshotPreview({
+  imageUrl,
+  onSave,
+  onCopy,
+  onDelete,
+  onEdit,
   onClose,
-  className 
+  className
 }: ScreenshotPreviewProps) {
   const imageRef = useRef<HTMLImageElement>(null);
   const [showActions, setShowActions] = useState(false);
@@ -99,6 +101,16 @@ export function ScreenshotPreview({
             )}
           >
             <div className="flex items-center gap-2 px-3 py-2 bg-black/80 backdrop-blur-sm rounded-lg shadow-lg">
+              <button
+                onClick={onEdit}
+                disabled={isLoading}
+                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-blue-500/50 transition-colors disabled:opacity-50"
+                aria-label="Edit screenshot"
+                title="Edit & Annotate"
+              >
+                <Pencil size={16} className="text-white" />
+              </button>
+
               <button
                 onClick={onSave}
                 disabled={isLoading}

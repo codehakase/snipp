@@ -5,12 +5,13 @@ import { useScreenshot } from '@/hooks/useScreenshot'
 import '@/styles.css'
 
 function PopupApp() {
-  const { 
-    currentScreenshot, 
-    saveScreenshot, 
-    copyScreenshot, 
-    deleteScreenshot, 
-    closePopup 
+  const {
+    currentScreenshot,
+    saveScreenshot,
+    copyScreenshot,
+    deleteScreenshot,
+    openEditor,
+    closePopup
   } = useScreenshot();
 
   useEffect(() => {
@@ -60,6 +61,7 @@ function PopupApp() {
         onSave={handleSave}
         onCopy={handleCopy}
         onDelete={handleDelete}
+        onEdit={openEditor}
         onClose={closePopup}
       />
     </div>
