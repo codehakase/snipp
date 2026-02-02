@@ -8,5 +8,5 @@ export default {
     '!src/**/*.test.js',
     '!src/**/*.spec.js'
   ],
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.js']
+  setupFilesAfterEnv: ['<rootDir>/src/setupTests.js']
 };

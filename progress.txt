@@ -1,3 +1,4 @@
 # Progress log
 # Append one line per completed PRD item: "<ISO8601> | <category> | <description>"
 2026-02-02T11:25:02Z | Repo Audit Findings | Align Tauri command names by adding open_preferences, hide_window, show_window handlers in Rust.
+2026-02-02T11:30:51Z | Repo Audit Findings | Normalize hotkey format in config storage and UI display, with canonicalization helpers and tests.

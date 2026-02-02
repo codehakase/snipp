@@ -311,7 +311,7 @@
         .replace('Shift', '⇧')
         .replace('Alt', '⌥')
         .replace('Ctrl', '⌃')
-        .replace('+', ' ');
+        .replace(/\+/g, ' ');
     }
 
     function parseHotkey(displayHotkey) {

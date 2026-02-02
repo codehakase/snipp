@@ -20,7 +20,6 @@
     "category": "Repo Audit Findings",
     "description": "Bugs, mismatches, or gaps identified during review that should be addressed before feature work builds on them.",
     "steps": [
-      "Normalize hotkey format: config defaults use 'Cmd+Shift+2' while global shortcut registration uses 'command+shift+s'; pick one format and add conversion helpers.",
       "Update TypeScript ScreenshotData/EditorData to include filename and file_path if they are emitted; ensure UI ignores unknown fields safely.",
       "Remove or gate verbose console logging in hooks and editor (screenshot-data/editor-data listeners).",
       "Correct clipboard copy format: AppleScript currently reads PNG as JPEG; update to preserve PNG (alpha) or use native clipboard APIs.",
