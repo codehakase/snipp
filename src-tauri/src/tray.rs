@@ -6,20 +6,43 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 
-use crate::ConfigState;
+use crate::{AppConfig, ConfigState};
+use crate::config::DEFAULT_FULLSCREEN_HOTKEY;
 
-
-
-pub fn create_tray_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
+pub fn create_tray_menu(
+    app: &AppHandle,
+    config: &AppConfig,
+) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
+    let capture_area_hotkey = format_hotkey_for_menu(&config.capture_hotkey);
+    let capture_screen_hotkey = format_hotkey_for_menu(DEFAULT_FULLSCREEN_HOTKEY);
+    let preferences_hotkey = format_hotkey_for_menu(&config.preferences_hotkey);
     let open_snipp = MenuItem::with_id(app, "open_snipp", "Open Snipp", true, None::<&str>)?;
     let separator1 = PredefinedMenuItem::separator(app)?;
-    let capture_screen = MenuItem::with_id(app, "capture_screen", "Capture Screen", true, Some("Cmd+Shift+f"))?;
-    let capture_area = MenuItem::with_id(app, "capture_area", "Capture Area", true, Some("Cmd+Shift+s"))?;
+    let capture_screen = MenuItem::with_id(
+        app,
+        "capture_screen",
+        "Capture Screen",
+        true,
+        Some(capture_screen_hotkey),
+    )?;
+    let capture_area = MenuItem::with_id(
+        app,
+        "capture_area",
+        "Capture Area",
+        true,
+        Some(capture_area_hotkey),
+    )?;
     let separator2 = PredefinedMenuItem::separator(app)?;
     let suggest_feature = MenuItem::with_id(app, "suggest_feature", "Suggest a Feature", true, None::<&str>)?;
     let report_bug = MenuItem::with_id(app, "report_bug", "Report a Bug", true, None::<&str>)?;
     let separator3 = PredefinedMenuItem::separator(app)?;
-    let preferences = MenuItem::with_id(app, "preferences", "Preferences...", true, Some("Cmd+,"))?;
+    let preferences = MenuItem::with_id(
+        app,
+        "preferences",
+        "Preferences...",
+        true,
+        Some(preferences_hotkey),
+    )?;
     let quit = PredefinedMenuItem::quit(app, Some("Quit Snipp"))?;
 
     let menu = Menu::with_items(app, &[
@@ -40,7 +63,11 @@ pub fn create_tray_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, Box<dyn std
 
 pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     println!("Setting up system tray...");
-    let menu = create_tray_menu(app)?;
+    let config = {
+        let config_state = app.state::<ConfigState>();
+        config_state.lock().unwrap().get_config().clone()
+    };
+    let menu = create_tray_menu(app, &config)?;
     println!("Tray menu created successfully");
     
     let icon_bytes = include_bytes!("../icons/AppIcon-32.png");
@@ -98,6 +125,42 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
+pub fn update_tray_menu(
+    app: &AppHandle,
+    config: &AppConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(tray) = app.tray_by_id("main") {
+        let menu = create_tray_menu(app, config)?;
+        tray.set_menu(Some(menu))?;
+    }
+    Ok(())
+}
+
+fn format_hotkey_for_menu(hotkey: &str) -> String {
+    let parts: Vec<&str> = hotkey
+        .split('+')
+        .filter(|part| !part.is_empty())
+        .collect();
+
+    let mut formatted: Vec<String> = Vec::new();
+    for part in parts {
+        let normalized = match part {
+            "CommandOrControl" => "Cmd",
+            "Shift" => "Shift",
+            "Alt" => "Alt",
+            "Ctrl" => "Ctrl",
+            "Comma" => ",",
+            "Period" => ".",
+            "Space" => "Space",
+            "Escape" => "Esc",
+            _ => part,
+        };
+        formatted.push(normalized.to_string());
+    }
+
+    formatted.join("+")
+}
+
 fn show_main_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(window) = app.get_webview_window("main") {
         window.show()?;
@@ -153,4 +216,3 @@ fn show_preferences_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Er
     });
     Ok(())
 }
-

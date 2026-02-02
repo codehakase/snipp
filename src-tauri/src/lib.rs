@@ -1,10 +1,12 @@
 use tauri::{App, AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_dialog::DialogExt;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::collections::HashMap;
 use base64::prelude::*;
+use image::GenericImageView;
 
 #[cfg(target_os = "macos")]
 use cocoa::appkit::NSEvent;
@@ -19,7 +21,7 @@ mod history;
 mod thumbnail;
 mod tray;
 
-use config::{AppConfig, ConfigManager};
+use config::{AppConfig, ConfigManager, DEFAULT_FULLSCREEN_HOTKEY};
 use history::HistoryManager;
 use thumbnail::ThumbnailGenerator;
 
@@ -253,10 +255,25 @@ fn get_cursor_position() -> (f64, f64) {
     (600.0, 400.0)
 }
 
+fn write_png_bytes_to_clipboard(app_handle: &AppHandle, png_bytes: &[u8]) -> Result<(), String> {
+    let decoded = image::load_from_memory(png_bytes)
+        .map_err(|e| format!("Failed to decode image data: {}", e))?;
+    let rgba = decoded.to_rgba8();
+    let (width, height) = rgba.dimensions();
+    let clipboard_image = tauri::image::Image::new_owned(rgba.into_raw(), width, height);
+
+    app_handle
+        .clipboard()
+        .write_image(&clipboard_image)
+        .map_err(|e| format!("Failed to write image to clipboard: {}", e))?;
+
+    Ok(())
+}
+
 
 #[tauri::command]
 async fn copy_to_clipboard(
-    _app_handle: AppHandle,
+    app_handle: AppHandle,
     timestamp: u64,
 ) -> Result<(), String> {
     println!("Copying screenshot to clipboard from memory cache: {}", timestamp);
@@ -269,28 +286,10 @@ async fn copy_to_clipboard(
     };
     
     let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
-    
-    let temp_path = std::env::temp_dir().join(format!("snipp_temp_{}.png", timestamp));
-    std::fs::write(&temp_path, &image_data)
-        .map_err(|e| format!("Failed to write temp file: {}", e))?;
-    
-    let shell_command = format!("osascript -e 'set the clipboard to (read (POSIX file \"{}\") as JPEG picture)'", temp_path.to_string_lossy());
-    
-    let output = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(&shell_command)
-        .output()
-        .map_err(|e| format!("Failed to execute clipboard command: {}", e))?;
-    
-    let _ = std::fs::remove_file(&temp_path);
-    
-    if output.status.success() {
-        println!("Successfully copied screenshot to clipboard");
-        Ok(())
-    } else {
-        let error = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Clipboard operation failed: {}", error))
-    }
+
+    write_png_bytes_to_clipboard(&app_handle, &image_data)?;
+    println!("Successfully copied screenshot to clipboard");
+    Ok(())
 }
 
 #[tauri::command]
@@ -371,12 +370,20 @@ async fn get_config(config_state: State<'_, ConfigState>) -> Result<AppConfig, S
 
 #[tauri::command]
 async fn update_config(
+    app_handle: AppHandle,
     config_state: State<'_, ConfigState>,
     new_config: AppConfig,
 ) -> Result<(), String> {
-    let mut config = config_state.lock().unwrap();
-    config.update_config(new_config)
-        .map_err(|e| format!("Failed to update config: {}", e))?;
+    let updated_config = {
+        let mut config = config_state.lock().unwrap();
+        config.update_config(new_config)
+            .map_err(|e| format!("Failed to update config: {}", e))?;
+        config.get_config().clone()
+    };
+
+    apply_global_shortcuts(&app_handle, &updated_config)?;
+    tray::update_tray_menu(&app_handle, &updated_config)
+        .map_err(|e| format!("Failed to update tray menu: {}", e))?;
     Ok(())
 }
 
@@ -488,22 +495,16 @@ async fn get_recent_screenshots(
 }
 
 #[tauri::command]
-async fn copy_screenshot_from_path(file_path: String) -> Result<(), String> {
-    let shell_command = format!("osascript -e 'set the clipboard to (read (POSIX file \"{}\") as JPEG picture)'", file_path);
-    
-    let output = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(&shell_command)
-        .output()
-        .map_err(|e| format!("Failed to execute clipboard command: {}", e))?;
-    
-    if output.status.success() {
-        println!("Successfully copied screenshot to clipboard");
-        Ok(())
-    } else {
-        let error = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Clipboard operation failed: {}", error))
-    }
+async fn copy_screenshot_from_path(
+    app_handle: AppHandle,
+    file_path: String,
+) -> Result<(), String> {
+    let image_data = std::fs::read(&file_path)
+        .map_err(|e| format!("Failed to read image file: {}", e))?;
+
+    write_png_bytes_to_clipboard(&app_handle, &image_data)?;
+    println!("Successfully copied screenshot to clipboard");
+    Ok(())
 }
 
 #[tauri::command]
@@ -681,8 +682,9 @@ async fn save_edited_screenshot(
 
 #[tauri::command]
 async fn copy_edited_screenshot(
+    app_handle: AppHandle,
     base64_image: String,
-    timestamp: u64,
+    _timestamp: u64,
 ) -> Result<(), String> {
     println!("Copying edited screenshot to clipboard");
 
@@ -690,64 +692,74 @@ async fn copy_edited_screenshot(
         .decode(&base64_image)
         .map_err(|e| format!("Failed to decode image: {}", e))?;
 
-    let temp_path = std::env::temp_dir().join(format!("snipp_edited_{}.png", timestamp));
-    std::fs::write(&temp_path, &image_data)
-        .map_err(|e| format!("Failed to write temp file: {}", e))?;
-
-    let shell_command = format!("osascript -e 'set the clipboard to (read (POSIX file \"{}\") as JPEG picture)'", temp_path.to_string_lossy());
-
-    let output = std::process::Command::new("sh")
-        .arg("-c")
-        .arg(&shell_command)
-        .output()
-        .map_err(|e| format!("Failed to execute clipboard command: {}", e))?;
-
-    let _ = std::fs::remove_file(&temp_path);
-
-    if output.status.success() {
-        println!("Successfully copied edited screenshot to clipboard");
-        Ok(())
-    } else {
-        let error = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Clipboard operation failed: {}", error))
-    }
+    write_png_bytes_to_clipboard(&app_handle, &image_data)?;
+    println!("Successfully copied edited screenshot to clipboard");
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 fn setup_global_shortcuts(app: &App) -> Result<(), Box<dyn std::error::Error>> {
-    use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, ShortcutState};
-    let sc_capture_area = "command+shift+s";
-    let sc_capture_screen = "command+shift+f";
-
     app.handle()
-        .plugin(
-            tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(move |app, shortcut, event| {
-                    println!("Global shortcut triggered: {:?}, event: {:?}", shortcut, event);
-                    if event.state() == ShortcutState::Pressed {
-                        if shortcut.matches(Modifiers::SUPER | Modifiers::SHIFT, Code::KeyS) {
-                                let app_handle = app.clone();
-                                tauri::async_runtime::spawn(async move {
-                                    if let Err(e) = capture_screenshot_internal(app_handle).await {
-                                        eprintln!("Failed to capture screenshot: {}", e);
-                                    }
-                                });
-                        } else if shortcut.matches(Modifiers::SUPER | Modifiers::SHIFT, Code::KeyF) {
-                                let app_handle = app.clone();
-                                tauri::async_runtime::spawn(async move {
-                                    let config_state = app_handle.state::<ConfigState>();
-                                    if let Err(e) = capture_full_screen(app_handle.clone(), config_state).await {
-                                        eprintln!("Failed to capture full screen: {}", e);
-                                    }
-                                });
-                        }
-                    }
-                })
-                .build(),
-        )?;
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())?;
 
-    app.global_shortcut().register(sc_capture_area)?;
-    app.global_shortcut().register(sc_capture_screen)?;
+    let config_state = app.state::<ConfigState>();
+    let config = config_state.lock().unwrap().get_config().clone();
+
+    apply_global_shortcuts(&app.handle(), &config)
+        .map_err(|e| -> Box<dyn std::error::Error> { e.into() })?;
+
+    Ok(())
+}
+
+fn apply_global_shortcuts(app_handle: &AppHandle, config: &AppConfig) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+    let global_shortcut = app_handle.global_shortcut();
+    global_shortcut
+        .unregister_all()
+        .map_err(|e| format!("Failed to unregister shortcuts: {}", e))?;
+
+    let capture_hotkey = config.capture_hotkey.clone();
+    global_shortcut
+        .on_shortcut(capture_hotkey.as_str(), move |app, _shortcut, event| {
+            if event.state() == ShortcutState::Pressed {
+                let app_handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = capture_screenshot_internal(app_handle).await {
+                        eprintln!("Failed to capture screenshot: {}", e);
+                    }
+                });
+            }
+        })
+        .map_err(|e| format!("Failed to register capture hotkey: {}", e))?;
+
+    let preferences_hotkey = config.preferences_hotkey.clone();
+    global_shortcut
+        .on_shortcut(preferences_hotkey.as_str(), move |app, _shortcut, event| {
+            if event.state() == ShortcutState::Pressed {
+                let app_handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = open_preferences_window(app_handle).await {
+                        eprintln!("Failed to open preferences: {}", e);
+                    }
+                });
+            }
+        })
+        .map_err(|e| format!("Failed to register preferences hotkey: {}", e))?;
+
+    global_shortcut
+        .on_shortcut(DEFAULT_FULLSCREEN_HOTKEY, move |app, _shortcut, event| {
+            if event.state() == ShortcutState::Pressed {
+                let app_handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let config_state = app_handle.state::<ConfigState>();
+                    if let Err(e) = capture_full_screen(app_handle.clone(), config_state).await {
+                        eprintln!("Failed to capture full screen: {}", e);
+                    }
+                });
+            }
+        })
+        .map_err(|e| format!("Failed to register fullscreen hotkey: {}", e))?;
 
     Ok(())
 }

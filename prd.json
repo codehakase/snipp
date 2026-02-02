@@ -22,8 +22,8 @@
     "steps": [
       "Update TypeScript ScreenshotData/EditorData to include filename and file_path if they are emitted; ensure UI ignores unknown fields safely.",
       "Remove or gate verbose console logging in hooks and editor (screenshot-data/editor-data listeners).",
-      "Correct clipboard copy format: AppleScript currently reads PNG as JPEG; update to preserve PNG (alpha) or use native clipboard APIs.",
-      "Wire preferences to actual global shortcut registration (tray labels, registrations, and in-app help text)."
+      "Correct clipboard copy format: AppleScript currently reads PNG as JPEG; update to preserve PNG (alpha) or use native clipboard APIs. (done 2026-02-02)",
+      "Wire preferences to actual global shortcut registration (tray labels, registrations, and in-app help text). (done 2026-02-02)"
     ],
     "passes": false
   },

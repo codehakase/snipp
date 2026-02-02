@@ -8,6 +8,12 @@ export interface EditorData {
   timestamp: number;
 }
 
+export interface AppConfig {
+  default_save_location: string;
+  capture_hotkey: string;
+  preferences_hotkey: string;
+}
+
 export interface TauriCommand {
   save_to_disk: (args: { timestamp: number }) => Promise<string>;
   copy_to_clipboard: (args: { timestamp: number }) => Promise<void>;
@@ -19,6 +25,8 @@ export interface TauriCommand {
   show_window: () => Promise<void>;
   capture_screenshot: () => Promise<void>;
   open_preferences: () => Promise<void>;
+  get_config: () => Promise<AppConfig>;
+  update_config: (args: { newConfig: AppConfig }) => Promise<void>;
   save_edited_screenshot: (args: { base64Image: string; timestamp: number }) => Promise<string>;
   copy_edited_screenshot: (args: { base64Image: string; timestamp: number }) => Promise<void>;
 }
