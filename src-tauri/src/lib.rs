@@ -402,10 +402,36 @@ async fn open_preferences_window(app_handle: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn open_preferences(app_handle: AppHandle) -> Result<(), String> {
+    open_preferences_window(app_handle).await
+}
+
+#[tauri::command]
 async fn close_preferences_window(app_handle: AppHandle) -> Result<(), String> {
     if let Some(preferences_window) = app_handle.get_webview_window("preferences") {
         preferences_window.close()
             .map_err(|e| format!("Failed to close preferences: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn hide_window(app_handle: AppHandle) -> Result<(), String> {
+    if let Some(main_window) = app_handle.get_webview_window("main") {
+        main_window
+            .hide()
+            .map_err(|e| format!("Failed to hide main window: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn show_window(app_handle: AppHandle) -> Result<(), String> {
+    if let Some(main_window) = app_handle.get_webview_window("main") {
+        main_window
+            .show()
+            .map_err(|e| format!("Failed to show main window: {}", e))?;
+        let _ = main_window.set_focus();
     }
     Ok(())
 }
@@ -764,6 +790,7 @@ pub fn run() {
             get_config,
             update_config,
             open_preferences_window,
+            open_preferences,
             close_preferences_window,
             choose_save_location,
             get_recent_screenshots,
@@ -774,7 +801,9 @@ pub fn run() {
             open_editor_window,
             close_editor_window,
             save_edited_screenshot,
-            copy_edited_screenshot
+            copy_edited_screenshot,
+            hide_window,
+            show_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
