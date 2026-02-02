@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { listen } from '@/lib/tauri';
+import { debugLog } from '@/lib/utils';
 import type { EditorData } from '@/types';
 import type { CanvasRef } from '@/components/editor/AnnotationCanvas';
 
@@ -11,13 +12,13 @@ export const useEditor = () => {
   useEffect(() => {
     const setupListener = async () => {
       try {
-        console.log('Setting up editor-data listener...');
+        debugLog('Setting up editor-data listener...');
         const unlisten = await listen('editor-data', (data: EditorData) => {
-          console.log('Received editor-data event');
+          debugLog('Received editor-data event');
           setImageData(data.base64_image);
           setTimestamp(data.timestamp);
         });
-        console.log('Editor listener setup successfully');
+        debugLog('Editor listener setup successfully');
         return unlisten;
       } catch (error) {
         console.error('Failed to setup editor listener:', error);

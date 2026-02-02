@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { listen, invoke } from '@/lib/tauri';
+import { debugLog } from '@/lib/utils';
 import type { ScreenshotData } from '@/types';
 
 export const useScreenshot = () => {
@@ -9,12 +10,12 @@ export const useScreenshot = () => {
   useEffect(() => {
     const setupListener = async () => {
       try {
-        console.log('Setting up screenshot-data listener...');
+        debugLog('Setting up screenshot-data listener...');
         const unlisten = await listen('screenshot-data', (data) => {
-          console.log('Received screenshot-data event:', data);
+          debugLog('Received screenshot-data event:', data);
           setCurrentScreenshot(data);
         });
-        console.log('Screenshot listener setup successfully');
+        debugLog('Screenshot listener setup successfully');
         return unlisten;
       } catch (error) {
         console.error('Failed to setup screenshot listener:', error);

@@ -4,3 +4,10 @@
 2026-02-02T11:30:51Z | Repo Audit Findings | Normalize hotkey format in config storage and UI display, with canonicalization helpers and tests.
 2026-02-02T11:34:22Z | Repo Audit Findings | Replace AppleScript JPEG clipboard writes with native clipboard image writes to preserve PNG/alpha.
 2026-02-02T11:41:52Z | Repo Audit Findings | Wire preferences to global shortcut registration, tray labels, and in-app hotkey display.
+2026-02-02T14:32:15Z | Auto Copy After Capture | Add config flags auto_copy_after_capture and auto_copy_after_edit to Rust and TypeScript types.
+2026-02-02T14:32:15Z | Auto Copy After Capture | Implement auto-copy logic in capture_screenshot_internal and capture_full_screen commands.
+2026-02-02T14:32:15Z | Auto Copy After Capture | Implement auto-copy after edit in save_edited_screenshot command.
+2026-02-02T14:32:15Z | Auto Copy After Capture | Add UI toggles for auto-copy settings in preferences HTML with round-trip persistence.
+2026-02-02T14:32:15Z | Auto Copy After Capture | Add debug logging for clipboard success/failure in auto-copy flows.
+2026-02-02T16:15:00Z | Repo Audit Findings | Update TypeScript ScreenshotData/EditorData types with filename and file_path fields for safe UI handling.
+2026-02-02T16:15:00Z | Repo Audit Findings | Add debugLog utility and gate verbose console logging in useScreenshot.ts and useEditor.ts hooks.

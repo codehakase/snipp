@@ -1,17 +1,23 @@
 export interface ScreenshotData {
   base64_image: string;
+  filename: string;
   timestamp: number;
+  file_path: string | null;
 }
 
 export interface EditorData {
   base64_image: string;
+  filename?: string;
   timestamp: number;
+  file_path?: string | null;
 }
 
 export interface AppConfig {
   default_save_location: string;
   capture_hotkey: string;
   preferences_hotkey: string;
+  auto_copy_after_capture: boolean;
+  auto_copy_after_edit: boolean;
 }
 
 export interface TauriCommand {

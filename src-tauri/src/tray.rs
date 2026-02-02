@@ -65,7 +65,8 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
     println!("Setting up system tray...");
     let config = {
         let config_state = app.state::<ConfigState>();
-        config_state.lock().unwrap().get_config().clone()
+        let config = config_state.lock().unwrap().get_config().clone();
+        config
     };
     let menu = create_tray_menu(app, &config)?;
     println!("Tray menu created successfully");

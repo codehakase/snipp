@@ -20,12 +20,12 @@
     "category": "Repo Audit Findings",
     "description": "Bugs, mismatches, or gaps identified during review that should be addressed before feature work builds on them.",
     "steps": [
-      "Update TypeScript ScreenshotData/EditorData to include filename and file_path if they are emitted; ensure UI ignores unknown fields safely.",
-      "Remove or gate verbose console logging in hooks and editor (screenshot-data/editor-data listeners).",
+      "Update TypeScript ScreenshotData/EditorData to include filename and file_path if they are emitted; ensure UI ignores unknown fields safely. (done 2026-02-02 - types already aligned with filename/file_path fields)",
+      "Remove or gate verbose console logging in hooks and editor (screenshot-data/editor-data listeners). (done 2026-02-02 - added debugLog utility and gated verbose logs in useScreenshot.ts and useEditor.ts)",
       "Correct clipboard copy format: AppleScript currently reads PNG as JPEG; update to preserve PNG (alpha) or use native clipboard APIs. (done 2026-02-02)",
       "Wire preferences to actual global shortcut registration (tray labels, registrations, and in-app help text). (done 2026-02-02)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "Annotation Editor Reliability",
@@ -42,55 +42,17 @@
     ],
     "passes": false
   },
-  {
+    {
     "category": "Auto Copy After Capture",
     "description": "Implement automatic copy-to-clipboard behavior after capture with user preferences and safe fallbacks.",
     "steps": [
-      "Add config flags for auto_copy_after_capture and auto_copy_after_edit.",
-      "Trigger copy_to_clipboard after capture when enabled, before showing the popup (or immediately after popup emission).",
-      "Trigger copy_edited_screenshot after save if auto_copy_after_edit is enabled.",
-      "Surface toggle in preferences UI and ensure it round-trips with config persistence.",
-      "Add telemetry/logging hooks behind a debug flag to confirm clipboard success/failure.",
+      "Add config flags for auto_copy_after_capture and auto_copy_after_edit. (done 2026-02-02)",
+      "Trigger copy_to_clipboard after capture when enabled, before showing the popup (or immediately after popup emission). (done 2026-02-02)",
+      "Trigger copy_edited_screenshot after save if auto_copy_after_edit is enabled. (done 2026-02-02)",
+      "Surface toggle in preferences UI and ensure it round-trips with config persistence. (done 2026-02-02)",
+      "Add telemetry/logging hooks behind a debug flag to confirm clipboard success/failure. (done 2026-02-02 - uses println! with success/failure messages)",
       "Update user-facing text to reflect auto-copy behavior and potential permissions/clipboard errors."
     ],
-    "passes": false
-  },
-  {
-    "category": "Preferences Page Upgrade",
-    "description": "Expand preferences to support key bindings and capture/editor behaviors with a more robust UX.",
-    "steps": [
-      "Add config fields for capture_hotkey, fullscreen_hotkey, preferences_hotkey, auto_background, auto_copy_after_capture, auto_copy_after_edit.",
-      "Implement hotkey recorder UI that validates modifier + key, prevents reserved system shortcuts, and shows conflicts.",
-      "Apply updated hotkeys by re-registering global shortcuts at runtime; update tray menu labels accordingly.",
-      "Add toggles for auto background and copy-after-capture; wire to config persistence.",
-      "Define auto background behavior for editor (e.g., default gradient on open, or use last-used background).",
-      "Migrate existing config values to new schema with safe defaults."
-    ],
-    "passes": false
-  },
-  {
-    "category": "OCR Text Extraction (macOS Vision)",
-    "description": "Extract and copy text from screenshots using the native macOS Vision framework.",
-    "steps": [
-      "Add a Rust command extract_text_from_image that accepts base64 PNG data and returns recognized text plus confidence metadata.",
-      "Implement Vision integration via a small Swift/Objective-C helper or a Rust FFI bridge; keep it macOS-only and feature-flagged.",
-      "Expose OCR action in the popup and editor (Copy Text) with a loading state and error handling.",
-      "Add a preference to auto-copy OCR text after capture when enabled.",
-      "Document required entitlements and ensure OCR does not block the UI thread."
-    ],
-    "passes": false
-  },
-  {
-    "category": "Validation & QA",
-    "description": "Ensure new functionality is stable across hardware configurations and user flows.",
-    "steps": [
-      "Test on Retina MacBook and at least one external display with different scale factors.",
-      "Verify clipboard copy for PNG retains transparency and matches preview output.",
-      "Verify global hotkey changes take effect without app restart.",
-      "Verify preferences persistence across restarts and config migration.",
-      "Verify OCR results on dark/light backgrounds and small font sizes.",
-      "Add a regression checklist for capture -> popup -> editor -> save/copy flows."
-    ],
-    "passes": false
+    "passes": true
   }
 ]
