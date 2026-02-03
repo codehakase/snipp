@@ -11,3 +11,5 @@
 2026-02-02T14:32:15Z | Auto Copy After Capture | Add debug logging for clipboard success/failure in auto-copy flows.
 2026-02-02T16:15:00Z | Repo Audit Findings | Update TypeScript ScreenshotData/EditorData types with filename and file_path fields for safe UI handling.
 2026-02-02T16:15:00Z | Repo Audit Findings | Add debugLog utility and gate verbose console logging in useScreenshot.ts and useEditor.ts hooks.
+2026-02-03T01:32:46Z | Annotation Editor Reliability | Implement undo/redo history stack with Cmd+Z/Cmd+Shift+Z shortcuts and UI buttons in annotation canvas.
+2026-02-03T02:15:00Z | Annotation Editor Reliability | Make arrow tool a grouped object using fabric.Group so the head stays attached when moved/edited/scaled.

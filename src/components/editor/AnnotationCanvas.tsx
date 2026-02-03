@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
 import * as fabric from 'fabric';
 import type { EditorState } from './EditorApp';
 
@@ -14,6 +14,14 @@ export interface CanvasRef {
   undo: () => void;
   redo: () => void;
   setZoom: (zoom: number) => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+}
+
+// History entry represents a canvas state snapshot
+interface HistoryEntry {
+  json: string;
+  timestamp: number;
 }
 
 // Parse CSS gradient to Fabric gradient
@@ -61,6 +69,12 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
     const isInitializedRef = useRef(false);
     const isMountedRef = useRef(true);
     const hasCalculatedInitialZoomRef = useRef(false);
+
+    // History state for undo/redo
+    const historyRef = useRef<HistoryEntry[]>([]);
+    const historyIndexRef = useRef(-1);
+    const isRestoringRef = useRef(false);
+    const maxHistorySize = 50;
 
     // Initialize Fabric canvas and load image
     useEffect(() => {
@@ -211,6 +225,129 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       }
     }, [containerSize, canvasSize, onZoomCalculated]);
 
+    // Save current state to history
+    const saveToHistory = useCallback(() => {
+      const canvas = fabricRef.current;
+      if (!canvas || isRestoringRef.current) return;
+
+      // Get all annotation objects (exclude background and main image)
+      const objects = canvas.getObjects().filter(obj =>
+        obj !== bgRectRef.current && obj !== imageRef.current
+      );
+
+      // Serialize only the annotation objects (include 'objects' for groups)
+      const json = JSON.stringify(objects.map(obj => obj.toObject(['id', 'objects'])));
+
+      // If we're not at the end of history, truncate forward history
+      if (historyIndexRef.current < historyRef.current.length - 1) {
+        historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
+      }
+
+      // Add new entry
+      historyRef.current.push({
+        json,
+        timestamp: Date.now(),
+      });
+
+      // Enforce max history size
+      if (historyRef.current.length > maxHistorySize) {
+        historyRef.current.shift();
+      } else {
+        historyIndexRef.current++;
+      }
+    }, []);
+
+    // Restore state from history
+    const restoreFromHistory = useCallback(async (index: number) => {
+      const canvas = fabricRef.current;
+      const entry = historyRef.current[index];
+      if (!canvas || !entry) return;
+
+      isRestoringRef.current = true;
+
+      // Remove all annotation objects
+      const objectsToRemove = canvas.getObjects().filter(obj =>
+        obj !== bgRectRef.current && obj !== imageRef.current
+      );
+      objectsToRemove.forEach(obj => canvas.remove(obj));
+
+      // Parse and recreate objects
+      const objectsData = JSON.parse(entry.json);
+      for (const objData of objectsData) {
+        const recreated = await recreateObject(objData);
+        if (recreated) {
+          canvas.add(recreated);
+        }
+      }
+
+      canvas.discardActiveObject();
+      canvas.renderAll();
+
+      historyIndexRef.current = index;
+      isRestoringRef.current = false;
+    }, []);
+
+    // Helper to recreate fabric objects from serialized data
+    const recreateObject = async (objData: Record<string, unknown>): Promise<fabric.Object | null> => {
+      const type = objData.type as string;
+
+      switch (type) {
+        case 'Rect':
+        case 'rect':
+          return new fabric.Rect(objData as fabric.TOptions<fabric.RectProps>);
+        case 'Ellipse':
+        case 'ellipse':
+          return new fabric.Ellipse(objData as fabric.TOptions<fabric.EllipseProps>);
+        case 'Line':
+        case 'line':
+          return new fabric.Line(
+            [
+              objData.x1 as number ?? 0,
+              objData.y1 as number ?? 0,
+              objData.x2 as number ?? 0,
+              objData.y2 as number ?? 0,
+            ],
+            objData as fabric.TOptions<fabric.FabricObjectProps>
+          );
+        case 'Triangle':
+        case 'triangle':
+          return new fabric.Triangle(objData as fabric.TOptions<fabric.FabricObjectProps>);
+        case 'IText':
+        case 'i-text':
+          return new fabric.IText(objData.text as string ?? '', objData as fabric.TOptions<fabric.ITextProps>);
+        case 'Group':
+        case 'group': {
+          // Recreate group objects (e.g., arrows)
+          const objectsData = objData.objects as Record<string, unknown>[] | undefined;
+          if (!objectsData || objectsData.length === 0) return null;
+
+          const groupObjects: fabric.Object[] = [];
+          for (const childData of objectsData) {
+            const child = await recreateObject(childData);
+            if (child) {
+              groupObjects.push(child);
+            }
+          }
+
+          if (groupObjects.length === 0) return null;
+
+          const group = new fabric.Group(groupObjects, {
+            left: objData.left as number ?? 0,
+            top: objData.top as number ?? 0,
+            angle: objData.angle as number ?? 0,
+            scaleX: objData.scaleX as number ?? 1,
+            scaleY: objData.scaleY as number ?? 1,
+            originX: (objData.originX as fabric.TOriginX) ?? 'center',
+            originY: (objData.originY as fabric.TOriginY) ?? 'center',
+          });
+
+          return group;
+        }
+        default:
+          return null;
+      }
+    };
+
     // Update canvas when padding, background, or border radius changes
     useEffect(() => {
       const canvas = fabricRef.current;
@@ -315,6 +452,24 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       canvas.renderAll();
     }, [editorState.tool]);
 
+    // Track object modifications (move, scale, rotate) for undo history
+    useEffect(() => {
+      const canvas = fabricRef.current;
+      if (!canvas) return;
+
+      const handleObjectModified = () => {
+        if (!isRestoringRef.current) {
+          saveToHistory();
+        }
+      };
+
+      canvas.on('object:modified', handleObjectModified);
+
+      return () => {
+        canvas.off('object:modified', handleObjectModified);
+      };
+    }, [saveToHistory]);
+
     // Handle mouse events for drawing
     useEffect(() => {
       const canvas = fabricRef.current;
@@ -375,6 +530,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
             canvas.add(text);
             canvas.setActiveObject(text);
             text.enterEditing();
+            saveToHistory();
             return;
           case 'blur':
             shape = new fabric.Rect({
@@ -431,10 +587,11 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       };
 
       const handleMouseUp = () => {
+        const wasDrawing = isDrawing && activeShapeRef.current !== null;
         setIsDrawing(false);
         startPointRef.current = null;
 
-        // Convert arrow line to arrow with head
+        // Convert arrow line to grouped arrow (line + head)
         if (editorState.tool === 'arrow' && activeShapeRef.current instanceof fabric.Line) {
           const line = activeShapeRef.current;
           const x1 = line.x1 || 0;
@@ -442,13 +599,31 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
           const x2 = line.x2 || 0;
           const y2 = line.y2 || 0;
 
-          // Calculate arrow head
+          // Remove the temporary line
+          canvas.remove(line);
+
+          // Calculate arrow head angle and size
           const angle = Math.atan2(y2 - y1, x2 - x1);
           const headLength = 15;
 
+          // Create line with coordinates relative to group center
+          const centerX = (x1 + x2) / 2;
+          const centerY = (y1 + y2) / 2;
+
+          const arrowLine = new fabric.Line(
+            [x1 - centerX, y1 - centerY, x2 - centerX, y2 - centerY],
+            {
+              stroke: editorState.color,
+              strokeWidth: editorState.strokeWidth,
+              originX: 'center',
+              originY: 'center',
+            }
+          );
+
+          // Create arrow head positioned at the end point, relative to group center
           const arrowHead = new fabric.Triangle({
-            left: x2,
-            top: y2,
+            left: x2 - centerX,
+            top: y2 - centerY,
             width: headLength,
             height: headLength,
             fill: editorState.color,
@@ -457,10 +632,36 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
             originY: 'center',
           });
 
-          canvas.add(arrowHead);
+          // Group the line and head together
+          const arrowGroup = new fabric.Group([arrowLine, arrowHead], {
+            left: centerX,
+            top: centerY,
+            originX: 'center',
+            originY: 'center',
+          });
+
+          // Mark this group as an arrow for serialization
+          (arrowGroup as fabric.Group & { arrowData?: object }).arrowData = {
+            color: editorState.color,
+            strokeWidth: editorState.strokeWidth,
+          };
+
+          canvas.add(arrowGroup);
+          activeShapeRef.current = null;
+
+          // Save to history after completing arrow
+          if (wasDrawing) {
+            saveToHistory();
+          }
+          return;
         }
 
         activeShapeRef.current = null;
+
+        // Save to history after completing a drawing action
+        if (wasDrawing) {
+          saveToHistory();
+        }
       };
 
       canvas.on('mouse:down', handleMouseDown);
@@ -472,7 +673,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         canvas.off('mouse:move', handleMouseMove);
         canvas.off('mouse:up', handleMouseUp);
       };
-    }, [editorState, isDrawing]);
+    }, [editorState, isDrawing, saveToHistory]);
 
     // Delete key handler
     useEffect(() => {
@@ -482,19 +683,24 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
             editorState.tool === 'select') {
           const canvas = fabricRef.current;
           const activeObjects = canvas.getActiveObjects();
+          let deletedAny = false;
           activeObjects.forEach(obj => {
             // Don't delete background or main image
             if (obj === bgRectRef.current || obj === imageRef.current) return;
             canvas.remove(obj);
+            deletedAny = true;
           });
           canvas.discardActiveObject();
           canvas.renderAll();
+          if (deletedAny) {
+            saveToHistory();
+          }
         }
       };
 
       window.addEventListener('keydown', handleKeyDown);
       return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [editorState.tool]);
+    }, [editorState.tool, saveToHistory]);
 
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -525,11 +731,30 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         return dataURL;
       },
       undo: () => {
-        // TODO: Implement undo with history stack
+        if (historyIndexRef.current > 0) {
+          restoreFromHistory(historyIndexRef.current - 1);
+        } else if (historyIndexRef.current === 0) {
+          // Undo to initial state (no annotations)
+          const canvas = fabricRef.current;
+          if (!canvas) return;
+          isRestoringRef.current = true;
+          const objectsToRemove = canvas.getObjects().filter(obj =>
+            obj !== bgRectRef.current && obj !== imageRef.current
+          );
+          objectsToRemove.forEach(obj => canvas.remove(obj));
+          canvas.discardActiveObject();
+          canvas.renderAll();
+          historyIndexRef.current = -1;
+          isRestoringRef.current = false;
+        }
       },
       redo: () => {
-        // TODO: Implement redo with history stack
+        if (historyIndexRef.current < historyRef.current.length - 1) {
+          restoreFromHistory(historyIndexRef.current + 1);
+        }
       },
+      canUndo: () => historyIndexRef.current >= 0,
+      canRedo: () => historyIndexRef.current < historyRef.current.length - 1,
       setZoom: (zoom: number) => {
         if (!fabricRef.current || canvasSize.width === 0) return;
         fabricRef.current.setZoom(zoom);
@@ -539,7 +764,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         });
         fabricRef.current.renderAll();
       },
-    }));
+    }), [canvasSize, restoreFromHistory]);
 
     return (
       <div className="shadow-2xl rounded-lg overflow-hidden">
