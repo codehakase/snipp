@@ -31,9 +31,9 @@
     "category": "Annotation Editor Reliability",
     "description": "Stabilize the annotation UI and fix the MacBook display framing issue while completing missing tooling.",
     "steps": [
-      "Reproduce the MacBook display framing bug; capture logs for container size, image size, and computed zoom on Retina and external displays.",
-      "Adjust canvas sizing/zoom logic to handle devicePixelRatio and Fabric scaling correctly; ensure the image always fits the editor viewport on Retina.",
-      "Persist and restore editor state between zoom recalculations to prevent jumpy rendering.",
+      "Reproduce the MacBook display framing bug; capture logs for container size, image size, and computed zoom on Retina and external displays. (done 2026-02-03 - added diagnostic logging with DPR, screen size, and retina detection)",
+      "Adjust canvas sizing/zoom logic to handle devicePixelRatio and Fabric scaling correctly; ensure the image always fits the editor viewport on Retina. (done 2026-02-03 - enabled Fabric.js enableRetinaScaling and fixed setDimensions calls for high-DPI support)",
+      "Persist and restore editor state between zoom recalculations to prevent jumpy rendering. (done 2026-02-03 - zoom state preserved via hasCalculatedInitialZoomRef flag)",
       "Implement undo/redo history stack for Fabric operations (add/remove/transform/text edits). (done 2026-02-03 - history stack with Cmd+Z/Cmd+Shift+Z shortcuts and UI buttons)",
       "Make arrow tool a grouped object so the head stays attached when moved/edited. (done 2026-02-03 - arrow now uses fabric.Group containing Line and Triangle that move together)",
       "Replace redact tool with actual blur (Fabric filters + clipping) instead of solid rectangles. (done 2026-02-03 - blur tool now pixelates the underlying image region using Fabric.js Pixelate filter)",

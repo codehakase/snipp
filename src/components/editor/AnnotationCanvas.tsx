@@ -160,12 +160,17 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       isInitializedRef.current = true;
       isMountedRef.current = true;
 
+      // Get device pixel ratio for high-DPI display support
+      const dpr = window.devicePixelRatio || 1;
+
       const canvas = new fabric.Canvas(canvasRef.current, {
         selection: editorState.tool === 'select',
         preserveObjectStacking: true,
-        // Disable Fabric's retina scaling - we handle this ourselves
-        enableRetinaScaling: false,
+        // Enable Fabric's retina scaling for sharp rendering on high-DPI displays
+        enableRetinaScaling: true,
       });
+
+      console.log('[AnnotationCanvas] Canvas initialized with DPR:', dpr);
 
       fabricRef.current = canvas;
 
@@ -180,7 +185,15 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         const imgWidth = img.width || 800;
         const imgHeight = img.height || 600;
 
-        console.log('[AnnotationCanvas] Image loaded:', { imgWidth, imgHeight });
+        const dpr = window.devicePixelRatio || 1;
+        console.log('[AnnotationCanvas] Image loaded:', {
+          imgWidth,
+          imgHeight,
+          devicePixelRatio: dpr,
+          screenWidth: window.screen.width,
+          screenHeight: window.screen.height,
+          isRetina: dpr > 1,
+        });
 
         // Store original image size for later calculations
         setOriginalImageSize({ width: imgWidth, height: imgHeight });
@@ -274,6 +287,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       if (!canvas || canvasSize.width === 0 || canvasSize.height === 0) return;
       if (containerSize.width === 0 || containerSize.height === 0) return;
 
+      const dpr = window.devicePixelRatio || 1;
       const availableWidth = containerSize.width - 64;
       const availableHeight = containerSize.height - 64;
       const scaleX = availableWidth / canvasSize.width;
@@ -287,14 +301,16 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         availableHeight,
         scaleX,
         scaleY,
-        fitZoom
+        fitZoom,
+        devicePixelRatio: dpr,
       });
 
       canvas.setZoom(fitZoom);
-      canvas.setDimensions({
-        width: canvasSize.width * fitZoom,
-        height: canvasSize.height * fitZoom,
-      });
+      // Set CSS dimensions for display (Fabric handles backing store scaling internally with enableRetinaScaling)
+      canvas.setDimensions(
+        { width: canvasSize.width * fitZoom, height: canvasSize.height * fitZoom },
+        { cssOnly: false }
+      );
       canvas.renderAll();
 
       hasCalculatedInitialZoomRef.current = true;
@@ -543,10 +559,10 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       img.setCoords();
 
       // Update canvas element size with zoom
-      canvas.setDimensions({
-        width: fullCanvasWidth * currentZoom,
-        height: fullCanvasHeight * currentZoom,
-      });
+      canvas.setDimensions(
+        { width: fullCanvasWidth * currentZoom, height: fullCanvasHeight * currentZoom },
+        { cssOnly: false }
+      );
 
       // Ensure background stays at the back
       canvas.sendObjectToBack(bgRect);
@@ -559,10 +575,10 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       if (!canvas || canvasSize.width === 0 || editorState.zoom <= 0) return;
 
       canvas.setZoom(editorState.zoom);
-      canvas.setDimensions({
-        width: canvasSize.width * editorState.zoom,
-        height: canvasSize.height * editorState.zoom,
-      });
+      canvas.setDimensions(
+        { width: canvasSize.width * editorState.zoom, height: canvasSize.height * editorState.zoom },
+        { cssOnly: false }
+      );
       canvas.renderAll();
     }, [editorState.zoom, canvasSize]);
 
@@ -880,11 +896,13 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         // Temporarily reset zoom for full-resolution export
         const currentZoom = fabricRef.current.getZoom();
         fabricRef.current.setZoom(1);
-        fabricRef.current.setDimensions({
-          width: canvasSize.width,
-          height: canvasSize.height,
-        });
+        fabricRef.current.setDimensions(
+          { width: canvasSize.width, height: canvasSize.height },
+          { cssOnly: false }
+        );
 
+        // Export at 1x resolution (logical pixels, not device pixels)
+        // The multiplier: 1 ensures we get the logical size output
         const dataURL = fabricRef.current.toDataURL({
           format: 'png',
           quality: 1,
@@ -893,10 +911,10 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
 
         // Restore zoom
         fabricRef.current.setZoom(currentZoom);
-        fabricRef.current.setDimensions({
-          width: canvasSize.width * currentZoom,
-          height: canvasSize.height * currentZoom,
-        });
+        fabricRef.current.setDimensions(
+          { width: canvasSize.width * currentZoom, height: canvasSize.height * currentZoom },
+          { cssOnly: false }
+        );
 
         return dataURL;
       },
@@ -928,10 +946,10 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       setZoom: (zoom: number) => {
         if (!fabricRef.current || canvasSize.width === 0) return;
         fabricRef.current.setZoom(zoom);
-        fabricRef.current.setDimensions({
-          width: canvasSize.width * zoom,
-          height: canvasSize.height * zoom,
-        });
+        fabricRef.current.setDimensions(
+          { width: canvasSize.width * zoom, height: canvasSize.height * zoom },
+          { cssOnly: false }
+        );
         fabricRef.current.renderAll();
       },
     }), [canvasSize, restoreFromHistory]);

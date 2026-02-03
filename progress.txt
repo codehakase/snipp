@@ -14,3 +14,4 @@
 2026-02-03T01:32:46Z | Annotation Editor Reliability | Implement undo/redo history stack with Cmd+Z/Cmd+Shift+Z shortcuts and UI buttons in annotation canvas.
 2026-02-03T02:15:00Z | Annotation Editor Reliability | Make arrow tool a grouped object using fabric.Group so the head stays attached when moved/edited/scaled.
 2026-02-03T03:45:00Z | Annotation Editor Reliability | Replace redact tool with actual pixelate blur using Fabric.js Pixelate filter on captured image regions. Includes proper serialization for undo/redo history.
+2026-02-03T05:12:00Z | Annotation Editor Reliability | Fix Retina display framing: enabled enableRetinaScaling in Fabric.js canvas, added DPR-aware diagnostic logging, and fixed setDimensions calls to properly handle high-DPI displays. Canvas now renders sharply on MacBook Retina screens.
