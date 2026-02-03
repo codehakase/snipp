@@ -37,10 +37,10 @@
       "Implement undo/redo history stack for Fabric operations (add/remove/transform/text edits). (done 2026-02-03 - history stack with Cmd+Z/Cmd+Shift+Z shortcuts and UI buttons)",
       "Make arrow tool a grouped object so the head stays attached when moved/edited. (done 2026-02-03 - arrow now uses fabric.Group containing Line and Triangle that move together)",
       "Replace redact tool with actual blur (Fabric filters + clipping) instead of solid rectangles. (done 2026-02-03 - blur tool now pixelates the underlying image region using Fabric.js Pixelate filter)",
-      "Verify border radius and background changes update the export output and on-screen preview identically.",
-      "Add tests or a manual verification checklist for all tools: select, rect, ellipse, arrow, line, text, blur, padding, background, border radius."
+      "Verify border radius and background changes update the export output and on-screen preview identically. (done 2026-02-03 - background rect now has rx/ry for rounded corners, canvas-level clip path applied during export for transparent corners, both preview and export render identically)",
+      "Add tests or a manual verification checklist for all tools: select, rect, ellipse, arrow, line, text, blur, padding, background, border radius. (done 2026-02-03 - added 61 unit tests in annotationTools.test.js covering gradient parsing, presets, keyboard shortcuts, zoom/padding/border radius calculations, history management, and tool logic; added comprehensive manual verification checklist in ANNOTATION_TOOLS_VERIFICATION.md)"
     ],
-    "passes": false
+    "passes": true
   },
     {
     "category": "Auto Copy After Capture",

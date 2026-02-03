@@ -218,6 +218,8 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
           width: fullCanvasWidth,
           height: fullCanvasHeight,
           fill: bgFill || backgroundColor,
+          rx: borderRadius,
+          ry: borderRadius,
           selectable: false,
           evented: false,
           hoverCursor: 'default',
@@ -531,6 +533,8 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         width: fullCanvasWidth,
         height: fullCanvasHeight,
         fill: bgFill || backgroundColor,
+        rx: borderRadius,
+        ry: borderRadius,
         dirty: true,
       });
       bgRect.setCoords();
@@ -893,25 +897,51 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       exportToDataURL: () => {
         if (!fabricRef.current || canvasSize.width === 0) return null;
 
+        const canvas = fabricRef.current;
+        const currentBorderRadius = editorState.borderRadius;
+
         // Temporarily reset zoom for full-resolution export
-        const currentZoom = fabricRef.current.getZoom();
-        fabricRef.current.setZoom(1);
-        fabricRef.current.setDimensions(
+        const currentZoom = canvas.getZoom();
+        canvas.setZoom(1);
+        canvas.setDimensions(
           { width: canvasSize.width, height: canvasSize.height },
           { cssOnly: false }
         );
 
+        // Apply canvas-level clip path for rounded corners during export
+        // This ensures the exported PNG has transparent corners when borderRadius > 0
+        let previousClipPath: fabric.Object | undefined;
+        if (currentBorderRadius > 0) {
+          previousClipPath = canvas.clipPath;
+          canvas.clipPath = new fabric.Rect({
+            width: canvasSize.width,
+            height: canvasSize.height,
+            rx: currentBorderRadius,
+            ry: currentBorderRadius,
+            originX: 'left',
+            originY: 'top',
+            left: 0,
+            top: 0,
+            absolutePositioned: true,
+          });
+        }
+
         // Export at 1x resolution (logical pixels, not device pixels)
         // The multiplier: 1 ensures we get the logical size output
-        const dataURL = fabricRef.current.toDataURL({
+        const dataURL = canvas.toDataURL({
           format: 'png',
           quality: 1,
           multiplier: 1,
         });
 
+        // Restore canvas clip path
+        if (currentBorderRadius > 0) {
+          canvas.clipPath = previousClipPath;
+        }
+
         // Restore zoom
-        fabricRef.current.setZoom(currentZoom);
-        fabricRef.current.setDimensions(
+        canvas.setZoom(currentZoom);
+        canvas.setDimensions(
           { width: canvasSize.width * currentZoom, height: canvasSize.height * currentZoom },
           { cssOnly: false }
         );
@@ -952,7 +982,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         );
         fabricRef.current.renderAll();
       },
-    }), [canvasSize, restoreFromHistory]);
+    }), [canvasSize, restoreFromHistory, editorState.borderRadius]);
 
     return (
       <div className="shadow-2xl rounded-lg overflow-hidden">
