@@ -234,6 +234,21 @@
       margin-top: 8px;
       display: none;
     }
+
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin: 0;
+      cursor: pointer;
+      accent-color: #007AFF;
+    }
+
+    /* Dark mode support for checkboxes */
+    @media (prefers-color-scheme: dark) {
+      input[type="checkbox"] {
+        accent-color: #0A84FF;
+      }
+    }
   </style>
 </head>
 <body>
@@ -245,6 +260,18 @@
         <div class="setting-control">
           <input type="text" class="input-field" id="save-location" readonly>
           <button class="btn-small" id="browse-btn">Browse...</button>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label">Auto-copy after capture</div>
+        <div class="setting-control">
+          <input type="checkbox" id="auto-copy-capture">
+        </div>
+      </div>
+      <div class="setting-row">
+        <div class="setting-label">Auto-copy after editing</div>
+        <div class="setting-control">
+          <input type="checkbox" id="auto-copy-edit">
         </div>
       </div>
     </div>
@@ -302,6 +329,8 @@
       document.getElementById('save-location').value = config.default_save_location;
       document.getElementById('capture-hotkey').value = formatHotkey(config.capture_hotkey);
       document.getElementById('preferences-hotkey').value = formatHotkey(config.preferences_hotkey);
+      document.getElementById('auto-copy-capture').checked = config.auto_copy_after_capture || false;
+      document.getElementById('auto-copy-edit').checked = config.auto_copy_after_edit || false;
     }
 
     function formatHotkey(hotkey) {
@@ -311,7 +340,7 @@
         .replace('Shift', '⇧')
         .replace('Alt', '⌥')
         .replace('Ctrl', '⌃')
-        .replace('+', ' ');
+        .replace(/\+/g, ' ');
     }
 
     function parseHotkey(displayHotkey) {
@@ -438,6 +467,15 @@
         console.error('Failed to save config:', error);
         alert('Failed to save settings. Please try again.');
       }
+    });
+
+    // Auto-copy checkbox listeners
+    document.getElementById('auto-copy-capture').addEventListener('change', (event) => {
+      currentConfig.auto_copy_after_capture = event.target.checked;
+    });
+
+    document.getElementById('auto-copy-edit').addEventListener('change', (event) => {
+      currentConfig.auto_copy_after_edit = event.target.checked;
     });
 
     // Close on Escape key

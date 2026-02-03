@@ -75,7 +75,7 @@ export function ToolSettings({
 
       {tool === 'blur' && (
         <span className="text-sm text-neutral-400">
-          Draw rectangles to redact sensitive content
+          Draw rectangles to pixelate sensitive content
         </span>
       )}
     </div>

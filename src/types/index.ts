@@ -1,11 +1,23 @@
 export interface ScreenshotData {
   base64_image: string;
+  filename: string;
   timestamp: number;
+  file_path: string | null;
 }
 
 export interface EditorData {
   base64_image: string;
+  filename?: string;
   timestamp: number;
+  file_path?: string | null;
+}
+
+export interface AppConfig {
+  default_save_location: string;
+  capture_hotkey: string;
+  preferences_hotkey: string;
+  auto_copy_after_capture: boolean;
+  auto_copy_after_edit: boolean;
 }
 
 export interface TauriCommand {
@@ -19,6 +31,8 @@ export interface TauriCommand {
   show_window: () => Promise<void>;
   capture_screenshot: () => Promise<void>;
   open_preferences: () => Promise<void>;
+  get_config: () => Promise<AppConfig>;
+  update_config: (args: { newConfig: AppConfig }) => Promise<void>;
   save_edited_screenshot: (args: { base64Image: string; timestamp: number }) => Promise<string>;
   copy_edited_screenshot: (args: { base64Image: string; timestamp: number }) => Promise<void>;
 }

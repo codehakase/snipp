@@ -5,7 +5,7 @@ import { ToolSettings } from './ToolSettings';
 import { PaddingControls } from './PaddingControls';
 import { useEditor } from '@/hooks/useEditor';
 import { invoke } from '@/lib/tauri';
-import { Save, Copy, X, Settings2 } from 'lucide-react';
+import { Save, Copy, X, Settings2, Undo2, Redo2 } from 'lucide-react';
 
 export type ToolType = 'select' | 'rect' | 'ellipse' | 'arrow' | 'line' | 'text' | 'blur';
 
@@ -148,6 +148,14 @@ export function EditorApp() {
     await invoke('close_editor_window');
   }, []);
 
+  const handleUndo = useCallback(() => {
+    canvasRef.current?.undo();
+  }, [canvasRef]);
+
+  const handleRedo = useCallback(() => {
+    canvasRef.current?.redo();
+  }, [canvasRef]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -158,6 +166,12 @@ export function EditorApp() {
       } else if ((e.metaKey || e.ctrlKey) && e.key === 'c' && !window.getSelection()?.toString()) {
         e.preventDefault();
         handleCopy();
+      } else if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') {
+        e.preventDefault();
+        handleRedo();
+      } else if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault();
+        handleUndo();
       }
       // Tool shortcuts
       if (!e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -175,7 +189,7 @@ export function EditorApp() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleClose, handleSave, handleCopy, handleToolChange]);
+  }, [handleClose, handleSave, handleCopy, handleToolChange, handleUndo, handleRedo]);
 
   if (!imageData) {
     return (
@@ -190,6 +204,22 @@ export function EditorApp() {
       {/* Top Bar */}
       <div className="h-12 bg-neutral-800 border-b border-neutral-700 flex items-center justify-between px-4">
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 mr-2">
+            <button
+              onClick={handleUndo}
+              className="p-1.5 rounded-md hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors"
+              title="Undo (⌘Z)"
+            >
+              <Undo2 size={18} />
+            </button>
+            <button
+              onClick={handleRedo}
+              className="p-1.5 rounded-md hover:bg-neutral-700 text-neutral-400 hover:text-white transition-colors"
+              title="Redo (⌘⇧Z)"
+            >
+              <Redo2 size={18} />
+            </button>
+          </div>
           <ToolSettings
             tool={editorState.tool}
             color={editorState.color}

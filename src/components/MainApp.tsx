@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Camera, Settings, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useScreenshot } from '@/hooks/useScreenshot';
@@ -5,6 +6,38 @@ import { invoke } from '@/lib/tauri';
 
 export function MainApp() {
   const { testScreenshot, isLoading } = useScreenshot();
+  const [captureHotkey, setCaptureHotkey] = useState('⌘⇧2');
+
+  const formatHotkey = (hotkey: string) =>
+    hotkey
+      .replace('CommandOrControl', '⌘')
+      .replace('Shift', '⇧')
+      .replace('Alt', '⌥')
+      .replace('Ctrl', '⌃')
+      .replace('Comma', ',')
+      .replace('Period', '.')
+      .replace(/\+/g, '');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadConfig = async () => {
+      try {
+        const config = await invoke('get_config');
+        if (isMounted) {
+          setCaptureHotkey(formatHotkey(config.capture_hotkey));
+        }
+      } catch (error) {
+        console.error('Failed to load config:', error);
+      }
+    };
+
+    loadConfig();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handlePreferences = async () => {
     try {
@@ -44,7 +77,7 @@ export function MainApp() {
           <ol className="space-y-2 text-left">
             <li className="flex items-start">
               <span className="inline-block w-6 h-6 bg-primary/20 text-primary rounded-full text-sm font-semibold text-center mr-3 mt-0.5">1</span>
-              Press <kbd className="bg-muted border border-border rounded px-2 py-1 text-sm font-mono">⌘⇧2</kbd> anywhere on your system
+              Press <kbd className="bg-muted border border-border rounded px-2 py-1 text-sm font-mono">{captureHotkey}</kbd> anywhere on your system
             </li>
             <li className="flex items-start">
               <span className="inline-block w-6 h-6 bg-primary/20 text-primary rounded-full text-sm font-semibold text-center mr-3 mt-0.5">2</span>
