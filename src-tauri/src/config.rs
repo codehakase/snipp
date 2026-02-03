@@ -17,7 +17,7 @@ impl Default for AppConfig {
         let home_dir = std::env::var("HOME").unwrap_or_default();
         Self {
             default_save_location: format!("{}/Desktop", home_dir),
-            capture_hotkey: "CommandOrControl+Shift+2".to_string(),
+            capture_hotkey: "CommandOrControl+Shift+S".to_string(),
             preferences_hotkey: "CommandOrControl+Comma".to_string(),
             auto_copy_after_capture: true,
             auto_copy_after_edit: false,
@@ -28,6 +28,7 @@ impl Default for AppConfig {
 impl AppConfig {
     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
         let config_path = Self::get_config_path()?;
+        println!("config path: {}", config_path.to_string_lossy());
 
         if config_path.exists() {
             let contents = std::fs::read_to_string(&config_path)?;
