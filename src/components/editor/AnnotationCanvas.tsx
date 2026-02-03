@@ -2,6 +2,13 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallba
 import * as fabric from 'fabric';
 import type { EditorState } from './EditorApp';
 
+// Custom metadata type for blur regions
+interface BlurRegionData {
+  type: 'blurRegion';
+  originalBounds: { left: number; top: number; width: number; height: number };
+  blockSize: number;
+}
+
 interface AnnotationCanvasProps {
   imageData: string;
   editorState: EditorState;
@@ -53,6 +60,77 @@ function parseGradient(cssGradient: string, width: number, height: number): fabr
       { offset: 1, color: color2 },
     ],
   });
+}
+
+// Create a pixelated blur region from the underlying image
+async function createBlurRegion(
+  sourceImage: fabric.FabricImage,
+  bounds: { left: number; top: number; width: number; height: number },
+  imagePadding: { left: number; top: number },
+  blockSize: number = 8
+): Promise<fabric.FabricImage | null> {
+  // Calculate the region to extract from the source image (accounting for padding)
+  const imageLeft = imagePadding.left;
+  const imageTop = imagePadding.top;
+
+  // Calculate intersection with the image bounds
+  const imgWidth = sourceImage.width || 0;
+  const imgHeight = sourceImage.height || 0;
+
+  const cropLeft = Math.max(0, bounds.left - imageLeft);
+  const cropTop = Math.max(0, bounds.top - imageTop);
+  const cropRight = Math.min(imgWidth, bounds.left + bounds.width - imageLeft);
+  const cropBottom = Math.min(imgHeight, bounds.top + bounds.height - imageTop);
+
+  const cropWidth = cropRight - cropLeft;
+  const cropHeight = cropBottom - cropTop;
+
+  // Skip if the blur region doesn't overlap with the image
+  if (cropWidth <= 0 || cropHeight <= 0) {
+    return null;
+  }
+
+  // Get the source image element
+  const sourceElement = sourceImage.getElement() as HTMLImageElement;
+  if (!sourceElement) return null;
+
+  // Create a temporary canvas to extract the region
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = cropWidth;
+  tempCanvas.height = cropHeight;
+  const ctx = tempCanvas.getContext('2d');
+  if (!ctx) return null;
+
+  // Draw the cropped region from the source image
+  ctx.drawImage(
+    sourceElement,
+    cropLeft, cropTop, cropWidth, cropHeight,  // source rectangle
+    0, 0, cropWidth, cropHeight                 // destination rectangle
+  );
+
+  // Create a fabric image from the temp canvas
+  const blurImage = new fabric.FabricImage(tempCanvas, {
+    left: imageLeft + cropLeft,
+    top: imageTop + cropTop,
+    originX: 'left',
+    originY: 'top',
+  });
+
+  // Apply pixelate filter
+  const pixelateFilter = new fabric.filters.Pixelate({
+    blocksize: blockSize,
+  });
+  blurImage.filters = [pixelateFilter];
+  blurImage.applyFilters();
+
+  // Store metadata for serialization
+  (blurImage as fabric.FabricImage & { blurRegionData?: BlurRegionData }).blurRegionData = {
+    type: 'blurRegion',
+    originalBounds: bounds,
+    blockSize,
+  };
+
+  return blurImage;
 }
 
 export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
@@ -235,8 +313,16 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         obj !== bgRectRef.current && obj !== imageRef.current
       );
 
-      // Serialize only the annotation objects (include 'objects' for groups)
-      const json = JSON.stringify(objects.map(obj => obj.toObject(['id', 'objects'])));
+      // Serialize annotation objects with custom properties for blur regions
+      const json = JSON.stringify(objects.map(obj => {
+        const serialized = obj.toObject(['id', 'objects', 'src']);
+        // Include blur region metadata if present
+        const blurData = (obj as fabric.FabricImage & { blurRegionData?: BlurRegionData }).blurRegionData;
+        if (blurData) {
+          serialized.blurRegionData = blurData;
+        }
+        return serialized;
+      }));
 
       // If we're not at the end of history, truncate forward history
       if (historyIndexRef.current < historyRef.current.length - 1) {
@@ -342,6 +428,49 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
           });
 
           return group;
+        }
+        case 'Image':
+        case 'image': {
+          // Check if this is a blur region
+          const blurData = objData.blurRegionData as BlurRegionData | undefined;
+          if (blurData && imageRef.current) {
+            // Recreate the blur region from the source image
+            const blurImage = await createBlurRegion(
+              imageRef.current,
+              blurData.originalBounds,
+              editorState.padding,
+              blurData.blockSize
+            );
+            if (blurImage) {
+              // Apply any transformations from the serialized data
+              blurImage.set({
+                angle: objData.angle as number ?? 0,
+                scaleX: objData.scaleX as number ?? 1,
+                scaleY: objData.scaleY as number ?? 1,
+              });
+              return blurImage;
+            }
+          }
+          // Fallback: try to recreate from src if available
+          const src = objData.src as string | undefined;
+          if (src) {
+            try {
+              const img = await fabric.FabricImage.fromURL(src);
+              img.set({
+                left: objData.left as number ?? 0,
+                top: objData.top as number ?? 0,
+                angle: objData.angle as number ?? 0,
+                scaleX: objData.scaleX as number ?? 1,
+                scaleY: objData.scaleY as number ?? 1,
+                originX: (objData.originX as fabric.TOriginX) ?? 'left',
+                originY: (objData.originY as fabric.TOriginY) ?? 'top',
+              });
+              return img;
+            } catch {
+              return null;
+            }
+          }
+          return null;
         }
         default:
           return null;
@@ -653,6 +782,47 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
           if (wasDrawing) {
             saveToHistory();
           }
+          return;
+        }
+
+        // Convert blur rectangle to pixelated image region
+        if (editorState.tool === 'blur' && activeShapeRef.current instanceof fabric.Rect) {
+          const rect = activeShapeRef.current;
+          const rectLeft = rect.left || 0;
+          const rectTop = rect.top || 0;
+          const rectWidth = rect.width || 0;
+          const rectHeight = rect.height || 0;
+
+          // Skip if rectangle is too small
+          if (rectWidth < 5 || rectHeight < 5) {
+            canvas.remove(rect);
+            activeShapeRef.current = null;
+            return;
+          }
+
+          // Remove the temporary rectangle
+          canvas.remove(rect);
+
+          // Create pixelated blur region from the image
+          const img = imageRef.current;
+          if (img) {
+            const bounds = {
+              left: rectLeft,
+              top: rectTop,
+              width: rectWidth,
+              height: rectHeight,
+            };
+
+            createBlurRegion(img, bounds, editorState.padding, 8).then((blurImage) => {
+              if (blurImage && fabricRef.current) {
+                fabricRef.current.add(blurImage);
+                fabricRef.current.renderAll();
+                saveToHistory();
+              }
+            });
+          }
+
+          activeShapeRef.current = null;
           return;
         }
 
