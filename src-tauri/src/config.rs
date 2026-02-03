@@ -19,7 +19,7 @@ impl Default for AppConfig {
             default_save_location: format!("{}/Desktop", home_dir),
             capture_hotkey: "CommandOrControl+Shift+2".to_string(),
             preferences_hotkey: "CommandOrControl+Comma".to_string(),
-            auto_copy_after_capture: false,
+            auto_copy_after_capture: true,
             auto_copy_after_edit: false,
         }
     }
