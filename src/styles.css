@@ -4,28 +4,28 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222.2 84% 4.9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
-    
-    font-family: Inter, system-ui, -apple-system, sans-serif;
+    --background: oklch(0.98 0 0);
+    --foreground: oklch(0.15 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.15 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.15 0 0);
+    --primary: oklch(0.55 0.2 29);
+    --primary-foreground: oklch(0.98 0 0);
+    --secondary: oklch(0.95 0 0);
+    --secondary-foreground: oklch(0.15 0 0);
+    --muted: oklch(0.92 0 0);
+    --muted-foreground: oklch(0.55 0 0);
+    --accent: oklch(0.55 0.2 29);
+    --accent-foreground: oklch(0.98 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.577 0.245 27.325);
+    --border: oklch(0.88 0 0);
+    --input: oklch(0.95 0 0);
+    --ring: oklch(0.55 0.2 29);
+    --radius: 0.375rem;
+
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', system-ui, sans-serif;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -34,25 +34,25 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
+    --background: oklch(0.12 0 0);
+    --foreground: oklch(0.98 0 0);
+    --card: oklch(0.15 0 0);
+    --card-foreground: oklch(0.98 0 0);
+    --popover: oklch(0.15 0 0);
+    --popover-foreground: oklch(0.98 0 0);
+    --primary: oklch(0.55 0.2 29);
+    --primary-foreground: oklch(0.12 0 0);
+    --secondary: oklch(0.22 0 0);
+    --secondary-foreground: oklch(0.98 0 0);
+    --muted: oklch(0.22 0 0);
+    --muted-foreground: oklch(0.65 0 0);
+    --accent: oklch(0.55 0.2 29);
+    --accent-foreground: oklch(0.12 0 0);
+    --destructive: oklch(0.396 0.141 25.723);
+    --destructive-foreground: oklch(0.637 0.237 25.331);
+    --border: oklch(0.22 0 0);
+    --input: oklch(0.22 0 0);
+    --ring: oklch(0.55 0.2 29);
   }
 }
 
