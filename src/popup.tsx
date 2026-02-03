@@ -19,6 +19,14 @@ function PopupApp() {
   }, [currentScreenshot]);
 
   useEffect(() => {
+    if (!currentScreenshot) return;
+    const autoDismissTimer = setTimeout(() => {
+      closePopup();
+    }, 5000);
+    return () => clearTimeout(autoDismissTimer);
+  }, [currentScreenshot, closePopup]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         closePopup();
