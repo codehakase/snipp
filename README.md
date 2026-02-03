@@ -8,13 +8,19 @@ Snipp lets you capture screenshots effortlessly with global hotkeys, saving them
 
 ## Installation
 
-### Prerequisites
+### Download
+
+Download the latest build from the [releases page](https://github.com/codehakase/snipp/releases/tag/tip).
+
+### Build from Source
+
+#### Prerequisites
 
 - macOS 10.15+ 
 - Node.js 16+ and npm
 - Rust (latest stable)
 
-### Setup
+#### Setup
 
 Clone the repository and install dependencies:
 
