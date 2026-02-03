@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::collections::HashMap;
 use base64::prelude::*;
-use image::GenericImageView;
+
 
 #[cfg(target_os = "macos")]
 use cocoa::appkit::NSEvent;
@@ -488,40 +488,7 @@ async fn update_config(
     Ok(())
 }
 
-#[tauri::command]
-async fn open_preferences_window(app_handle: AppHandle) -> Result<(), String> {
-    if app_handle.get_webview_window("preferences").is_some() {
-        return Ok(());
-    }
-    
-    let _preferences_window = WebviewWindowBuilder::new(
-        &app_handle,
-        "preferences",
-        WebviewUrl::App("preferences.html".into())
-    )
-    .title("Snipp Preferences")
-    .inner_size(480.0, 400.0)
-    .resizable(false)
-    .center()
-    .build()
-    .map_err(|e| format!("Failed to create preferences window: {}", e))?;
-    
-    Ok(())
-}
 
-#[tauri::command]
-async fn open_preferences(app_handle: AppHandle) -> Result<(), String> {
-    open_preferences_window(app_handle).await
-}
-
-#[tauri::command]
-async fn close_preferences_window(app_handle: AppHandle) -> Result<(), String> {
-    if let Some(preferences_window) = app_handle.get_webview_window("preferences") {
-        preferences_window.close()
-            .map_err(|e| format!("Failed to close preferences: {}", e))?;
-    }
-    Ok(())
-}
 
 #[tauri::command]
 async fn hide_window(app_handle: AppHandle) -> Result<(), String> {
@@ -858,12 +825,11 @@ fn apply_global_shortcuts(app_handle: &AppHandle, config: &AppConfig) -> Result<
     global_shortcut
         .on_shortcut(preferences_hotkey.as_str(), move |app, _shortcut, event| {
             if event.state() == ShortcutState::Pressed {
-                let app_handle = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    if let Err(e) = open_preferences_window(app_handle).await {
-                        eprintln!("Failed to open preferences: {}", e);
-                    }
-                });
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    let _ = window.center();
+                }
             }
         })
         .map_err(|e| format!("Failed to register preferences hotkey: {}", e))?;
@@ -922,9 +888,6 @@ pub fn run() {
             close_popup_window,
             get_config,
             update_config,
-            open_preferences_window,
-            open_preferences,
-            close_preferences_window,
             choose_save_location,
             get_recent_screenshots,
             copy_screenshot_from_path,

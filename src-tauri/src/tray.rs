@@ -15,13 +15,20 @@ pub fn create_tray_menu(
 ) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
     let capture_area_hotkey = format_hotkey_for_menu(&config.capture_hotkey);
     let capture_screen_hotkey = format_hotkey_for_menu(DEFAULT_FULLSCREEN_HOTKEY);
-    let preferences_hotkey = format_hotkey_for_menu(&config.preferences_hotkey);
-    let open_snipp = MenuItem::with_id(app, "open_snipp", "Open Snipp", true, None::<&str>)?;
+    let dashboard_hotkey = format_hotkey_for_menu(&config.preferences_hotkey);
+    
+    let open_snipp = MenuItem::with_id(
+        app, 
+        "open_snipp", 
+        "Open Snipp", 
+        true, 
+        Some(dashboard_hotkey)
+    )?;
     let separator1 = PredefinedMenuItem::separator(app)?;
     let capture_screen = MenuItem::with_id(
         app,
         "capture_screen",
-        "Capture Screen",
+        "Capture Full Screen",
         true,
         Some(capture_screen_hotkey),
     )?;
@@ -36,13 +43,6 @@ pub fn create_tray_menu(
     let suggest_feature = MenuItem::with_id(app, "suggest_feature", "Suggest a Feature", true, None::<&str>)?;
     let report_bug = MenuItem::with_id(app, "report_bug", "Report a Bug", true, None::<&str>)?;
     let separator3 = PredefinedMenuItem::separator(app)?;
-    let preferences = MenuItem::with_id(
-        app,
-        "preferences",
-        "Preferences...",
-        true,
-        Some(preferences_hotkey),
-    )?;
     let quit = PredefinedMenuItem::quit(app, Some("Quit Snipp"))?;
 
     let menu = Menu::with_items(app, &[
@@ -54,7 +54,6 @@ pub fn create_tray_menu(
         &suggest_feature,
         &report_bug,
         &separator3,
-        &preferences,
         &quit,
     ])?;
 
@@ -110,11 +109,6 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
                 "report_bug" => {
                     if let Err(e) = open_url_with_app(app, "https://github.com/codehakase/snipp/issues/new?template=bug_report.md") {
                         eprintln!("Failed to open bug report URL: {}", e);
-                    }
-                }
-                "preferences" => {
-                    if let Err(e) = show_preferences_window(app) {
-                        eprintln!("Failed to show preferences: {}", e);
                     }
                 }
                 _ => {}
@@ -207,13 +201,4 @@ fn open_url_with_app(app: &AppHandle, url: &str) -> Result<(), Box<dyn std::erro
     }
 }
 
-fn show_preferences_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
-    let app_handle = app.clone();
-    tauri::async_runtime::spawn(async move {
-        match crate::open_preferences_window(app_handle).await {
-            Ok(_) => println!("Preferences window opened"),
-            Err(e) => eprintln!("Failed to open preferences: {}", e),
-        }
-    });
-    Ok(())
-}
+
