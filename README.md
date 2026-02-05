@@ -3,8 +3,7 @@
 A minimal, elegant screenshot capture tool for macOS, built with Tauri and Rust.
 Snipp lets you capture screenshots effortlessly with global hotkeys, saving them directly to your Desktop with clean, timestamped filenames.
 
-![Screenshot demo](https://github.com/user-attachments/assets/ab6043f7-6602-4c93-aed3-01f5475f6432)
-
+<img width="2624" height="1826" alt="Snipp 26-02-05 at 18 26 19" src="https://github.com/user-attachments/assets/01bdcba0-5157-4b33-9012-f11f28395855" />
 
 ## Installation
 
