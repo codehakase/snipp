@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::collections::HashMap;
 use base64::prelude::*;
+use chrono::{Local, TimeZone};
 
 
 #[cfg(target_os = "macos")]
@@ -37,6 +38,15 @@ pub struct ScreenshotData {
     pub file_path: Option<String>, // Only set when saved to disk
 }
 
+fn build_screenshot_filename(timestamp: u64) -> String {
+    let formatted = Local
+        .timestamp_opt(timestamp as i64, 0)
+        .single()
+        .map(|dt| dt.format("%y-%m-%d at %H.%M.%S").to_string())
+        .unwrap_or_else(|| timestamp.to_string());
+    format!("Snipp {}.png", formatted)
+}
+
 #[tauri::command]
 async fn capture_screenshot(
     app_handle: AppHandle,
@@ -56,7 +66,7 @@ async fn capture_screenshot_internal(
         .unwrap()
         .as_secs();
     
-    let filename = format!("snipp-{}.png", timestamp);
+    let filename = build_screenshot_filename(timestamp);
     
     let temp_path = std::env::temp_dir().join(format!("snipp_capture_{}.png", timestamp));
     
@@ -131,7 +141,7 @@ async fn capture_screenshot_internal_with_auto_copy(
         .unwrap()
         .as_secs();
     
-    let filename = format!("snipp-{}.png", timestamp);
+    let filename = build_screenshot_filename(timestamp);
     
     let temp_path = std::env::temp_dir().join(format!("snipp_capture_{}.png", timestamp));
     
@@ -202,7 +212,7 @@ async fn capture_full_screen(
         .unwrap()
         .as_secs();
     
-    let filename = format!("snipp-fullscreen-{}.png", timestamp);
+    let filename = build_screenshot_filename(timestamp);
     
     let temp_path = std::env::temp_dir().join(format!("snipp_fullscreen_{}.png", timestamp));
     
@@ -415,7 +425,7 @@ async fn save_to_disk(
     
     let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
     
-    let filename = format!("snipp-{}.png", timestamp);
+    let filename = build_screenshot_filename(timestamp);
     let file_path = PathBuf::from(&save_location).join(&filename);
     
     if let Some(parent) = file_path.parent() {
@@ -718,7 +728,7 @@ async fn save_edited_screenshot(
         .decode(&base64_image)
         .map_err(|e| format!("Failed to decode image: {}", e))?;
 
-    let filename = format!("snipp-edited-{}.png", timestamp);
+    let filename = build_screenshot_filename(timestamp);
     let file_path = std::path::PathBuf::from(&save_location).join(&filename);
 
     if let Some(parent) = file_path.parent() {
@@ -967,10 +977,11 @@ mod tests {
     #[test]
     fn test_filename_generation() {
         let timestamp = 1234567890u64;
-        let filename = format!("snipp-{}.png", timestamp);
-        
-        assert_eq!(filename, "snipp-1234567890.png");
-        assert!(filename.starts_with("snipp-"));
+        let filename = build_screenshot_filename(timestamp);
+
+        assert!(filename.starts_with("Snipp "));
+        assert!(filename.contains(" at "));
         assert!(filename.ends_with(".png"));
+        assert_eq!(filename.len(), 30);
     }
 }
