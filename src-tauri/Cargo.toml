@@ -38,6 +38,16 @@ tauri-plugin-positioner = { version = "2.0.0", features = ["tray-icon"] }
 cocoa = "0.25"
 objc = "0.2"
 
+[profile.dev]
+incremental = true
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
+
 [dev-dependencies]
 tempfile = "3.8"
 
