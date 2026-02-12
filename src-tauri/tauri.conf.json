@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.ops.snipp",
   "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -21,8 +24,8 @@
       {
         "label": "popup",
         "title": "Screenshot Preview",
-        "width": 1920,
-        "height": 1080,
+        "width": 320,
+        "height": 220,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
@@ -32,6 +35,7 @@
         "minimizable": false,
         "maximizable": false,
         "closable": false,
+        "dragDropEnabled": false,
         "url": "popup.html"
       },
       {
@@ -49,7 +53,10 @@
     ],
     "security": {
       "csp": null,
-      "capabilities": ["default", "toast"]
+      "capabilities": ["default", "toast"],
+      "assetProtocol": {
+        "scope": ["$TEMP/**", "/var/folders/**", "/tmp/**"]
+      }
     }
   },
   "bundle": {

@@ -287,9 +287,8 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }
 
-    // Calculate bottom-left position with padding
-    let popup_width = 280.0;
-    let popup_height = 200.0;
+    let popup_width = 320.0;
+    let popup_height = 220.0;
     let padding = 20.0;
 
     // Get primary monitor size for proper positioning
@@ -319,6 +318,7 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
     .resizable(false)
     .minimizable(false)
     .maximizable(false)
+    .disable_drag_drop_handler()
     .build()
     .map_err(|e| format!("Failed to create popup window: {}", e))?;
     
@@ -789,6 +789,34 @@ async fn copy_edited_screenshot(
     Ok(())
 }
 
+#[tauri::command]
+async fn prepare_drag_file(timestamp: u64) -> Result<String, String> {
+    let cache_key = timestamp.to_string();
+    let image_data = {
+        let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        let cache_guard = cache.lock().map_err(|e| format!("Cache lock error: {}", e))?;
+        cache_guard.get(&cache_key).cloned()
+    };
+
+    let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
+
+    let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp));
+
+    std::fs::write(&temp_path, &image_data)
+        .map_err(|e| format!("Failed to write drag temp file: {}", e))?;
+
+    Ok(temp_path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn cleanup_drag_file(timestamp: u64) -> Result<(), String> {
+    let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp));
+    if temp_path.exists() {
+        let _ = std::fs::remove_file(&temp_path);
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 fn setup_global_shortcuts(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     app.handle()
@@ -873,6 +901,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_positioner::init())
+        .plugin(tauri_plugin_drag::init())
         .manage(ConfigState::new(config_manager))
         .manage(HistoryState::new(history_manager))
         .manage(ThumbnailState::new(thumbnail_generator))
@@ -908,6 +937,8 @@ pub fn run() {
             close_editor_window,
             save_edited_screenshot,
             copy_edited_screenshot,
+            prepare_drag_file,
+            cleanup_drag_file,
             hide_window,
             show_window
         ])
@@ -983,5 +1014,51 @@ mod tests {
         assert!(filename.contains(" at "));
         assert!(filename.ends_with(".png"));
         assert_eq!(filename.len(), 30);
+    }
+
+    #[test]
+    fn test_prepare_drag_file_writes_and_returns_path() {
+        let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        let timestamp = 8888888888u64;
+        let test_png = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        {
+            let mut guard = cache.lock().unwrap();
+            guard.insert(timestamp.to_string(), test_png.clone());
+        }
+
+        let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp));
+        let data = {
+            let guard = cache.lock().unwrap();
+            guard.get(&timestamp.to_string()).cloned().unwrap()
+        };
+        std::fs::write(&temp_path, &data).unwrap();
+
+        assert!(temp_path.exists());
+        let read_back = std::fs::read(&temp_path).unwrap();
+        assert_eq!(read_back, test_png);
+
+        // Path should be absolute, not a file:// URL
+        let path_str = temp_path.to_string_lossy().to_string();
+        assert!(path_str.starts_with('/'));
+        assert!(!path_str.starts_with("file://"));
+        assert!(path_str.ends_with(".png"));
+
+        // Cleanup
+        std::fs::remove_file(&temp_path).unwrap();
+        {
+            let mut guard = cache.lock().unwrap();
+            guard.remove(&timestamp.to_string());
+        }
+    }
+
+    #[test]
+    fn test_cleanup_drag_file_ignores_missing() {
+        let temp_path = std::env::temp_dir().join(build_screenshot_filename(2));
+        let _ = std::fs::remove_file(&temp_path);
+        // Should not panic
+        if temp_path.exists() {
+            let _ = std::fs::remove_file(&temp_path);
+        }
+        assert!(!temp_path.exists());
     }
 }
