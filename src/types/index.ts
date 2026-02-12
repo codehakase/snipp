@@ -39,6 +39,8 @@ export interface TauriCommand {
   choose_save_location: () => Promise<string | null>;
   save_edited_screenshot: (args: { base64Image: string; timestamp: number }) => Promise<string>;
   copy_edited_screenshot: (args: { base64Image: string; timestamp: number }) => Promise<void>;
+  prepare_drag_file: (args: { timestamp: number }) => Promise<string>;
+  cleanup_drag_file: (args: { timestamp: number }) => Promise<void>;
   get_recent_screenshots: () => Promise<Array<Record<string, unknown>>>;
   copy_screenshot_from_path: (args: { filePath: string }) => Promise<void>;
   open_in_finder: (args: { filePath: string }) => Promise<void>;
