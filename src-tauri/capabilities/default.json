@@ -15,9 +15,11 @@
     "clipboard-manager:allow-read-image",
     "clipboard-manager:allow-write-image",
     "fs:allow-read-file",
+    "fs:scope-temp-recursive",
     "fs:allow-remove",
     "fs:allow-create",
     "fs:allow-write-file",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    "drag:default"
   ]
 }

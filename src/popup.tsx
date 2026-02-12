@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import { ScreenshotPreview } from '@/components/ScreenshotPreview'
 import { useScreenshot } from '@/hooks/useScreenshot'
+import { invoke } from '@/lib/tauri'
 import '@/styles.css'
 
 function PopupApp() {
@@ -14,8 +15,29 @@ function PopupApp() {
     closePopup
   } = useScreenshot();
 
+  const [dragFilePath, setDragFilePath] = useState<string | null>(null);
+
   useEffect(() => {
     console.log('PopupApp mounted, currentScreenshot:', currentScreenshot);
+  }, [currentScreenshot]);
+
+  useEffect(() => {
+    if (!currentScreenshot) return;
+    let cancelled = false;
+    const prepare = async () => {
+      try {
+        const path = await invoke('prepare_drag_file', { timestamp: currentScreenshot.timestamp });
+        if (cancelled) return;
+        setDragFilePath(path);
+      } catch (err) {
+        console.error('Failed to prepare drag file:', err);
+      }
+    };
+    prepare();
+    return () => {
+      cancelled = true;
+      invoke('cleanup_drag_file', { timestamp: currentScreenshot.timestamp }).catch(() => {});
+    };
   }, [currentScreenshot]);
 
   useEffect(() => {
@@ -23,7 +45,12 @@ function PopupApp() {
     const autoDismissTimer = setTimeout(() => {
       closePopup();
     }, 5000);
-    return () => clearTimeout(autoDismissTimer);
+    const cancelTimer = () => clearTimeout(autoDismissTimer);
+    document.addEventListener('pointerdown', cancelTimer, { once: true });
+    return () => {
+      clearTimeout(autoDismissTimer);
+      document.removeEventListener('pointerdown', cancelTimer);
+    };
   }, [currentScreenshot, closePopup]);
 
   useEffect(() => {
@@ -60,12 +87,11 @@ function PopupApp() {
     );
   }
 
-  const imageUrl = `data:image/png;base64,${currentScreenshot.base64_image}`;
-
   return (
     <div className="w-full h-full bg-transparent p-2">
       <ScreenshotPreview
-        imageUrl={imageUrl}
+        imageUrl={`data:image/png;base64,${currentScreenshot.base64_image}`}
+        dragFilePath={dragFilePath ?? undefined}
         onSave={handleSave}
         onCopy={handleCopy}
         onDelete={handleDelete}

@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Save, Copy, Trash2, X, Pencil } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, debugLog } from '@/lib/utils';
 import { useScreenshot } from '@/hooks/useScreenshot';
+import { startDrag } from '@crabnebula/tauri-plugin-drag';
 
 interface ScreenshotPreviewProps {
   imageUrl: string;
+  dragFilePath?: string;
   onSave?: () => void;
   onCopy?: () => void;
   onDelete?: () => void;
@@ -15,6 +17,7 @@ interface ScreenshotPreviewProps {
 
 export function ScreenshotPreview({
   imageUrl,
+  dragFilePath,
   onSave,
   onCopy,
   onDelete,
@@ -22,37 +25,34 @@ export function ScreenshotPreview({
   onClose,
   className
 }: ScreenshotPreviewProps) {
-  const imageRef = useRef<HTMLImageElement>(null);
   const [showActions, setShowActions] = useState(false);
   const { isLoading } = useScreenshot();
 
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
-    e.dataTransfer.effectAllowed = "copy";
-    e.dataTransfer.setData("text/uri-list", imageUrl);
-    e.dataTransfer.setData("text/plain", imageUrl);
+  const DRAG_THRESHOLD = 5;
+  const dragStateRef = useRef<{ startX: number; startY: number; pending: boolean } | null>(null);
 
-    if (imageRef.current) {
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      const img = imageRef.current;
+  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || !dragFilePath) return;
+    if ((e.target as HTMLElement).closest('button')) return;
+    dragStateRef.current = { startX: e.clientX, startY: e.clientY, pending: true };
+  }, [dragFilePath]);
 
-      const scale = 0.3;
-      canvas.width = img.naturalWidth * scale;
-      canvas.height = img.naturalHeight * scale;
-
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            const dragImage = new Image();
-            dragImage.src = url;
-            e.dataTransfer.setDragImage(dragImage, 0, 0);
-          }
-        });
-      }
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    const state = dragStateRef.current;
+    if (!state?.pending || !dragFilePath) return;
+    const dx = e.clientX - state.startX;
+    const dy = e.clientY - state.startY;
+    if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+      dragStateRef.current = null;
+      startDrag({ item: [dragFilePath], icon: dragFilePath }).catch((err) => {
+        debugLog('Native drag failed:', err);
+      });
     }
-  };
+  }, [dragFilePath]);
+
+  const handlePointerUp = useCallback(() => {
+    dragStateRef.current = null;
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -70,9 +70,11 @@ export function ScreenshotPreview({
       tabIndex={-1}
     >
       <div
-        className="relative w-64 rounded-lg overflow-hidden shadow-2xl group"
-        draggable
-        onDragStart={handleDragStart}
+        className="relative w-[300px] rounded-lg overflow-hidden shadow-2xl group"
+        style={{ WebkitUserDrag: 'none' } as React.CSSProperties}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
         onMouseEnter={() => setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
@@ -85,13 +87,19 @@ export function ScreenshotPreview({
           <X size={12} className="text-white" />
         </button>
 
-        <div className="relative cursor-move">
-          <img
-            ref={imageRef}
-            src={imageUrl}
-            alt="Screenshot preview"
-            className="w-full h-auto object-contain block"
-            crossOrigin="anonymous"
+        <div className={cn(
+          "relative select-none",
+          dragFilePath ? "cursor-grab active:cursor-grabbing" : "cursor-default"
+        )}>
+          <div
+            className="w-full aspect-video bg-center bg-cover bg-no-repeat"
+            style={{
+              backgroundImage: `url("${imageUrl}")`,
+              WebkitUserDrag: 'none',
+              WebkitTouchCallout: 'none',
+            } as React.CSSProperties}
+            role="img"
+            aria-label="Screenshot preview"
           />
 
           <div 

@@ -196,9 +196,9 @@ mod tests {
         let config = AppConfig::default();
 
         assert_eq!(config.default_save_location, "/test/home/Desktop");
-        assert_eq!(config.capture_hotkey, "CommandOrControl+Shift+2");
+        assert_eq!(config.capture_hotkey, "CommandOrControl+Shift+S");
         assert_eq!(config.preferences_hotkey, "CommandOrControl+Comma");
-        assert_eq!(config.auto_copy_after_capture, false);
+        assert_eq!(config.auto_copy_after_capture, true);
         assert_eq!(config.auto_copy_after_edit, false);
 
         match original_home {
