@@ -5,7 +5,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-const DEBUG_ENABLED = typeof process !== 'undefined' && process.env.NODE_ENV === 'development';
+const DEBUG_ENABLED = import.meta.env.DEV;
 
 export function debugLog(...args: unknown[]): void {
   if (DEBUG_ENABLED) {
