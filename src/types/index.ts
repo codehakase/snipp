@@ -31,9 +31,6 @@ export interface TauriCommand {
   show_window: () => Promise<void>;
   capture_screenshot: () => Promise<ScreenshotData>;
   capture_full_screen: () => Promise<ScreenshotData>;
-  open_preferences: () => Promise<void>;
-  open_preferences_window: () => Promise<void>;
-  close_preferences_window: () => Promise<void>;
   get_config: () => Promise<AppConfig>;
   update_config: (args: { newConfig: AppConfig }) => Promise<void>;
   choose_save_location: () => Promise<string | null>;

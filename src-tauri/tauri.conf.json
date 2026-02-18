@@ -53,7 +53,7 @@
     ],
     "security": {
       "csp": null,
-      "capabilities": ["default", "toast"],
+      "capabilities": ["default"],
       "assetProtocol": {
         "scope": ["$TEMP/**", "/var/folders/**", "/tmp/**"]
       }
