@@ -24,32 +24,46 @@ export function ScreenshotPreview({
   className
 }: ScreenshotPreviewProps) {
   const [showActions, setShowActions] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const { isLoading } = useScreenshot();
 
   const DRAG_THRESHOLD = 5;
   const dragStateRef = useRef<{ startX: number; startY: number; pending: boolean } | null>(null);
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || !dragFilePath) return;
+    if (e.button !== 0 || !dragFilePath || isDragging) return;
     if ((e.target as HTMLElement).closest('button')) return;
     dragStateRef.current = { startX: e.clientX, startY: e.clientY, pending: true };
-  }, [dragFilePath]);
+  }, [dragFilePath, isDragging]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     const state = dragStateRef.current;
-    if (!state?.pending || !dragFilePath) return;
+    if (!state?.pending || !dragFilePath || isDragging) return;
     const dx = e.clientX - state.startX;
     const dy = e.clientY - state.startY;
     if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
-      dragStateRef.current = null;
-      startDrag({ item: [dragFilePath], icon: dragFilePath }).catch((err) => {
-        debugLog('Native drag failed:', err);
-      });
+      setIsDragging(true);
+      startDrag({ item: [dragFilePath], icon: dragFilePath })
+        .then(() => {
+          debugLog('Drag completed successfully');
+        })
+        .catch((err) => {
+          debugLog('Native drag failed:', err);
+        })
+        .finally(() => {
+          setIsDragging(false);
+          dragStateRef.current = null;
+        });
     }
-  }, [dragFilePath]);
+  }, [dragFilePath, isDragging]);
 
   const handlePointerUp = useCallback(() => {
     dragStateRef.current = null;
+  }, []);
+
+  const handlePointerCancel = useCallback(() => {
+    dragStateRef.current = null;
+    setIsDragging(false);
   }, []);
 
   return (
@@ -60,13 +74,15 @@ export function ScreenshotPreview({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onMouseEnter={() => setShowActions(true)}
+        onPointerCancel={handlePointerCancel}
+        onMouseEnter={() => !isDragging && setShowActions(true)}
         onMouseLeave={() => setShowActions(false)}
       >
         {/* Delete button - top right */}
         <button
           onClick={onDelete}
-          className="absolute top-2 right-2 z-20 w-7 h-7 flex items-center justify-center rounded-full bg-white border border-black hover:bg-red-50 hover:border-red-500 hover:scale-110 transition-all duration-200"
+          disabled={isDragging}
+          className="absolute top-2 right-2 z-20 w-7 h-7 flex items-center justify-center rounded-full bg-white border border-black hover:bg-red-50 hover:border-red-500 hover:scale-110 transition-all duration-200 disabled:opacity-50"
           aria-label="Delete screenshot"
           title="Delete"
         >
@@ -76,7 +92,7 @@ export function ScreenshotPreview({
         {/* Edit button - top left */}
         <button
           onClick={onEdit}
-          disabled={isLoading}
+          disabled={isLoading || isDragging}
           className="absolute top-2 left-2 z-20 w-7 h-7 flex items-center justify-center rounded-full bg-white border border-black hover:bg-blue-50 hover:border-blue-500 hover:scale-110 transition-all duration-200 disabled:opacity-50"
           aria-label="Edit screenshot"
           title="Edit"
@@ -87,7 +103,9 @@ export function ScreenshotPreview({
         {/* Image container with drag support */}
         <div className={cn(
           "relative w-full h-full select-none",
-          dragFilePath ? "cursor-grab active:cursor-grabbing" : "cursor-default"
+          dragFilePath && !isDragging ? "cursor-grab" : "",
+          isDragging ? "cursor-grabbing" : "",
+          !dragFilePath ? "cursor-default" : ""
         )}>
           <div
             className="w-full h-full bg-center bg-cover bg-no-repeat"
@@ -109,7 +127,7 @@ export function ScreenshotPreview({
           >
             <button
               onClick={onCopy}
-              disabled={isLoading}
+              disabled={isLoading || isDragging}
               className="flex items-center justify-center px-5 py-1.5 bg-white text-black rounded-full hover:bg-white/90 hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50"
               aria-label="Copy to clipboard"
               title="Copy"
@@ -119,7 +137,7 @@ export function ScreenshotPreview({
 
             <button
               onClick={onSave}
-              disabled={isLoading}
+              disabled={isLoading || isDragging}
               className="flex items-center justify-center px-5 py-1.5 bg-white text-black rounded-full hover:bg-white/90 hover:scale-105 active:scale-95 transition-all duration-200 disabled:opacity-50"
               aria-label="Save screenshot"
               title="Save"
@@ -133,6 +151,15 @@ export function ScreenshotPreview({
         {isLoading && (
           <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center z-30">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Drag indicator overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center z-20 pointer-events-none">
+            <div className="bg-white text-black px-3 py-1.5 rounded-full text-xs font-medium shadow-lg">
+              Release to drag
+            </div>
           </div>
         )}
       </div>

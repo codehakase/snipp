@@ -24,10 +24,15 @@ function PopupApp() {
   useEffect(() => {
     if (!currentScreenshot) return;
     let cancelled = false;
+    let filePrepared = false;
     const prepare = async () => {
       try {
         const path = await invoke('prepare_drag_file', { timestamp: currentScreenshot.timestamp });
-        if (cancelled) return;
+        if (cancelled) {
+          invoke('cleanup_drag_file', { timestamp: currentScreenshot.timestamp }).catch(() => {});
+          return;
+        }
+        filePrepared = true;
         setDragFilePath(path);
       } catch (err) {
         console.error('Failed to prepare drag file:', err);
@@ -36,7 +41,9 @@ function PopupApp() {
     prepare();
     return () => {
       cancelled = true;
-      invoke('cleanup_drag_file', { timestamp: currentScreenshot.timestamp }).catch(() => {});
+      if (filePrepared) {
+        invoke('cleanup_drag_file', { timestamp: currentScreenshot.timestamp }).catch(() => {});
+      }
     };
   }, [currentScreenshot]);
 
