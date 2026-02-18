@@ -88,7 +88,7 @@ function PopupApp() {
   }
 
   return (
-    <div className="w-full h-full bg-transparent p-2">
+    <div className="fixed bottom-4 left-4 bg-transparent">
       <ScreenshotPreview
         imageUrl={`data:image/png;base64,${currentScreenshot.base64_image}`}
         dragFilePath={dragFilePath ?? undefined}
@@ -96,7 +96,6 @@ function PopupApp() {
         onCopy={handleCopy}
         onDelete={handleDelete}
         onEdit={openEditor}
-        onClose={closePopup}
       />
     </div>
   );
