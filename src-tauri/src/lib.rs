@@ -586,13 +586,15 @@ async fn copy_screenshot_from_path(
 }
 
 #[tauri::command]
-async fn open_in_finder(file_path: String) -> Result<(), String> {
-    let output = std::process::Command::new("open")
-        .arg("-R")
-        .arg(&file_path)
+async fn open_in_finder(app_handle: AppHandle, file_path: String) -> Result<(), String> {
+    let output = app_handle
+        .shell()
+        .command("open")
+        .args(["-R", &file_path])
         .output()
+        .await
         .map_err(|e| format!("Failed to open in Finder: {}", e))?;
-    
+
     if output.status.success() {
         Ok(())
     } else {
