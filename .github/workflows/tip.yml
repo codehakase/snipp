@@ -8,8 +8,42 @@ on:
 permissions:
   contents: write
 
+# Only run one tip release at a time to prevent corrupting release artifacts.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.info.outputs.commit }}
+      commit_long: ${{ steps.info.outputs.commit_long }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract build info
+        id: info
+        run: |
+          echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "commit_long=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+  source:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create source archive
+        run: |
+          git archive --format=zip --prefix=snipp-${{ needs.setup.outputs.commit }}/ HEAD \
+            -o snipp-source.zip
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: source
+          path: snipp-source.zip
+
   build-macos:
+    needs: [setup]
     strategy:
       fail-fast: false
       matrix:
@@ -53,8 +87,20 @@ jobs:
           name: dmg-${{ matrix.arch }}
           path: src-tauri/target/*/release/bundle/dmg/*.dmg
 
+  tag:
+    needs: [setup, build-macos, source]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Force-update tip tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -fa tip -m "Latest Continuous Release" ${GITHUB_SHA}
+          git push --force origin tip
+
   release:
-    needs: build-macos
+    needs: [setup, build-macos, source, tag]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +115,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: tip
+          target_commitish: ${{ github.sha }}
           name: 'Snipp Tip ("Nightly")'
           prerelease: true
           body: |
@@ -76,7 +123,7 @@ jobs:
 
             **Warning: This is a nightly build, not a tagged release.**
 
-            Built from commit: ${{ github.sha }}
+            Built from commit: ${{ needs.setup.outputs.commit_long }}
 
             **Apple Silicon** (M1+): `Snipp_*_aarch64.dmg` | **Intel**: `Snipp_*_x64.dmg`
 
@@ -86,5 +133,6 @@ jobs:
             ```
           files: |
             artifacts/**/*.dmg
+            artifacts/snipp-source.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
