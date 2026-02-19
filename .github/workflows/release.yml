@@ -20,6 +20,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -39,6 +41,13 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: 'Snipp v__VERSION__'
-          releaseBody: 'Download the DMG below to install Snipp on macOS.'
+          releaseBody: |
+            Download the DMG below to install Snipp on macOS (Intel + Apple Silicon).
+
+            **Note:** This app is not code-signed. After installing, run:
+            ```
+            xattr -cr /Applications/Snipp.app
+            ```
           releaseDraft: true
           prerelease: false
+          args: --target universal-apple-darwin

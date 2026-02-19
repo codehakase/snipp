@@ -20,6 +20,8 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -32,8 +34,8 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Build Tauri app
-        run: npm run tauri:build
+      - name: Build Tauri app (universal)
+        run: npm run tauri:build -- --target universal-apple-darwin
 
       - name: Get short SHA
         id: sha
@@ -51,7 +53,12 @@ jobs:
             **Warning: This is a nightly build, not a tagged release.**
 
             Built from commit: ${{ github.sha }}
+
+            **macOS note:** This app is not code-signed. After installing, run:
+            ```
+            xattr -cr /Applications/Snipp.app
+            ```
           files: |
-            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
