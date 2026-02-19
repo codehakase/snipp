@@ -4,14 +4,27 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - args: '--target aarch64-apple-darwin'
+            arch: 'silicon'
+          - args: '--target x86_64-apple-darwin'
+            arch: 'intel'
+
     runs-on: macos-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,20 +47,69 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          PREV_TAG=$(git tag --sort=-v:refname | sed -n '2p')
+          if [ -z "$PREV_TAG" ]; then
+            COMMITS=$(git log --oneline --pretty=format:"- %s" --reverse)
+          else
+            COMMITS=$(git log "$PREV_TAG".."$TAG_NAME" --oneline --pretty=format:"- %s" --reverse)
+          fi
+          if [ -z "$COMMITS" ]; then
+            COMMITS="- No changes documented"
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$COMMITS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Build and release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v__VERSION__
-          releaseName: 'Snipp v__VERSION__'
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Snipp ${{ github.ref_name }}'
           releaseBody: |
-            Download the DMG below to install Snipp on macOS (Intel + Apple Silicon).
+            **Apple Silicon** (M1+): `Snipp_*_aarch64.dmg` | **Intel**: `Snipp_*_x64.dmg`
 
-            **Note:** This app is not code-signed. After installing, run:
+            After installing, remove the quarantine flag:
             ```
-            xattr -cr /Applications/Snipp.app
+            xattr -d com.apple.quarantine /Applications/Snipp.app
             ```
+
+            ### Changes
+
+            ${{ steps.release_notes.outputs.notes }}
           releaseDraft: true
           prerelease: false
-          args: --target universal-apple-darwin
+          args: ${{ matrix.args }}
+
+  publish:
+    needs: build-macos
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish Release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const tagName = context.ref.replace('refs/tags/', '');
+            const draftRelease = releases.find(r => r.draft && r.tag_name === tagName);
+
+            if (draftRelease) {
+              await github.rest.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: draftRelease.id,
+                draft: false,
+              });
+              console.log(`Published release: ${draftRelease.html_url}`);
+            } else {
+              console.log(`No draft release found for tag: ${tagName}`);
+            }
