@@ -1,4 +1,4 @@
-use tauri::{App, AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{App, AppHandle, Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_dialog::DialogExt;
@@ -38,13 +38,16 @@ pub struct ScreenshotData {
     pub file_path: Option<String>, // Only set when saved to disk
 }
 
-fn build_screenshot_filename(timestamp: u64) -> String {
+fn build_screenshot_filename(timestamp: u64, suffix: Option<&str>) -> String {
     let formatted = Local
         .timestamp_opt(timestamp as i64, 0)
         .single()
         .map(|dt| dt.format("%y-%m-%d at %H.%M.%S").to_string())
         .unwrap_or_else(|| timestamp.to_string());
-    format!("Snipp {}.png", formatted)
+    match suffix {
+        Some(s) => format!("Snipp {}{}.png", formatted, s),
+        None => format!("Snipp {}.png", formatted),
+    }
 }
 
 #[tauri::command]
@@ -66,7 +69,7 @@ async fn capture_screenshot_internal(
         .unwrap()
         .as_secs();
     
-    let filename = build_screenshot_filename(timestamp);
+    let filename = build_screenshot_filename(timestamp, None);
     
     let temp_path = std::env::temp_dir().join(format!("snipp_capture_{}.png", timestamp));
     
@@ -141,7 +144,7 @@ async fn capture_screenshot_internal_with_auto_copy(
         .unwrap()
         .as_secs();
     
-    let filename = build_screenshot_filename(timestamp);
+    let filename = build_screenshot_filename(timestamp, None);
     
     let temp_path = std::env::temp_dir().join(format!("snipp_capture_{}.png", timestamp));
     
@@ -212,7 +215,7 @@ async fn capture_full_screen(
         .unwrap()
         .as_secs();
     
-    let filename = build_screenshot_filename(timestamp);
+    let filename = build_screenshot_filename(timestamp, None);
     
     let temp_path = std::env::temp_dir().join(format!("snipp_fullscreen_{}.png", timestamp));
     
@@ -279,11 +282,9 @@ async fn capture_full_screen(
 async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotData) -> Result<(), String> {
     println!("Creating popup window for screenshot: {}", screenshot_data.filename);
 
-    // Close existing popup window if it exists
     if let Some(existing_popup) = app_handle.get_webview_window("popup") {
         println!("Closing existing popup window");
         existing_popup.close().map_err(|e| format!("Failed to close existing popup: {}", e))?;
-        // Small delay to ensure cleanup
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }
 
@@ -291,15 +292,12 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
     let popup_height = 220.0;
     let padding = 20.0;
 
-    // Get primary monitor size for proper positioning
     let (x_position, y_position) = if let Some(monitor) = app_handle.primary_monitor().ok().flatten() {
         let screen_size = monitor.size();
         let scale_factor = monitor.scale_factor();
         let screen_height = screen_size.height as f64 / scale_factor;
-        // Bottom-left position with padding from edges
-        (padding, screen_height - popup_height - padding - 50.0) // 50px extra for dock
+        (padding, screen_height - popup_height - padding - 50.0)
     } else {
-        // Fallback position
         (padding, 600.0)
     };
 
@@ -326,22 +324,35 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
     
     popup_window.show()
         .map_err(|e| format!("Failed to show popup: {}", e))?;
+
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
+    let ready_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(ready_tx)));
+    let ready_tx_clone = ready_tx.clone();
+
+    let unlisten_id = popup_window.listen("popup-ready", move |_event| {
+        if let Some(tx) = ready_tx_clone.lock().unwrap().take() {
+            let _ = tx.send(());
+        }
+    });
+
+    println!("Waiting for popup-ready signal (3s timeout)...");
+    let result = tokio::time::timeout(
+        tokio::time::Duration::from_secs(3),
+        ready_rx
+    ).await;
+
+    let _ = popup_window.unlisten(unlisten_id);
+
+    match result {
+        Ok(Ok(_)) => println!("Received popup-ready signal"),
+        Ok(Err(_)) => println!("Ready channel closed unexpectedly"),
+        Err(_) => println!("Timeout waiting for popup-ready, emitting anyway"),
+    }
     
-    println!("Waiting 500ms for popup to load...");
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-    
-    println!("Emitting screenshot-data event to popup");
     popup_window.emit("screenshot-data", screenshot_data)
         .map_err(|e| format!("Failed to emit screenshot data: {}", e))?;
     
-    // Emit multiple times to ensure React app receives it
-    for i in 1..=3 {
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        println!("Re-emitting screenshot-data event (attempt {})", i);
-        let _ = popup_window.emit("screenshot-data", screenshot_data);
-    }
-    
-    println!("Event emitted successfully");
+    println!("Screenshot data emitted successfully");
     
     Ok(())
 }
@@ -425,7 +436,7 @@ async fn save_to_disk(
     
     let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
     
-    let filename = build_screenshot_filename(timestamp);
+    let filename = build_screenshot_filename(timestamp, None);
     let file_path = PathBuf::from(&save_location).join(&filename);
     
     if let Some(parent) = file_path.parent() {
@@ -438,6 +449,13 @@ async fn save_to_disk(
     
     let file_path_str = file_path.to_string_lossy().to_string();
     println!("Successfully saved screenshot to: {}", file_path_str);
+
+    {
+        let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        let mut cache_guard = cache.lock().unwrap();
+        cache_guard.remove(&cache_key);
+        println!("Evicted screenshot from memory cache after save");
+    }
     
     {
         let mut history = history_state.lock().unwrap();
@@ -647,7 +665,6 @@ async fn open_editor_window(
 ) -> Result<(), String> {
     println!("Opening editor window for screenshot: {}", timestamp);
 
-    // Get screenshot data from cache
     let cache_key = timestamp.to_string();
     let image_data = {
         let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
@@ -658,13 +675,11 @@ async fn open_editor_window(
     let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
     let base64_image = base64::prelude::BASE64_STANDARD.encode(&image_data);
 
-    // Close existing editor if open
     if let Some(existing_editor) = app_handle.get_webview_window("editor") {
         existing_editor.close().map_err(|e| format!("Failed to close existing editor: {}", e))?;
         tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
     }
 
-    // Create editor window
     let editor_window = WebviewWindowBuilder::new(
         &app_handle,
         "editor",
@@ -680,10 +695,30 @@ async fn open_editor_window(
 
     editor_window.show().map_err(|e| format!("Failed to show editor: {}", e))?;
 
-    // Wait for window to load
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
+    let ready_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(ready_tx)));
+    let ready_tx_clone = ready_tx.clone();
 
-    // Create editor data struct and emit
+    let unlisten_id = editor_window.listen("editor-ready", move |_event| {
+        if let Some(tx) = ready_tx_clone.lock().unwrap().take() {
+            let _ = tx.send(());
+        }
+    });
+
+    println!("Waiting for editor-ready signal (3s timeout)...");
+    let result = tokio::time::timeout(
+        tokio::time::Duration::from_secs(3),
+        ready_rx
+    ).await;
+
+    let _ = editor_window.unlisten(unlisten_id);
+
+    match result {
+        Ok(Ok(_)) => println!("Received editor-ready signal"),
+        Ok(Err(_)) => println!("Ready channel closed unexpectedly"),
+        Err(_) => println!("Timeout waiting for editor-ready, emitting anyway"),
+    }
+
     let editor_data = serde_json::json!({
         "base64_image": base64_image,
         "timestamp": timestamp,
@@ -692,11 +727,7 @@ async fn open_editor_window(
     editor_window.emit("editor-data", &editor_data)
         .map_err(|e| format!("Failed to emit editor data: {}", e))?;
 
-    // Re-emit to ensure React receives it
-    for _ in 1..=3 {
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        let _ = editor_window.emit("editor-data", &editor_data);
-    }
+    println!("Editor data emitted successfully");
 
     Ok(())
 }
@@ -730,7 +761,7 @@ async fn save_edited_screenshot(
         .decode(&base64_image)
         .map_err(|e| format!("Failed to decode image: {}", e))?;
 
-    let filename = build_screenshot_filename(timestamp);
+    let filename = build_screenshot_filename(timestamp, None);
     let file_path = std::path::PathBuf::from(&save_location).join(&filename);
 
     if let Some(parent) = file_path.parent() {
@@ -802,7 +833,7 @@ async fn prepare_drag_file(timestamp: u64) -> Result<String, String> {
 
     let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
 
-    let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp));
+    let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp, None));
 
     std::fs::write(&temp_path, &image_data)
         .map_err(|e| format!("Failed to write drag temp file: {}", e))?;
@@ -812,7 +843,7 @@ async fn prepare_drag_file(timestamp: u64) -> Result<String, String> {
 
 #[tauri::command]
 async fn cleanup_drag_file(timestamp: u64) -> Result<(), String> {
-    let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp));
+    let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp, None));
     if temp_path.exists() {
         let _ = std::fs::remove_file(&temp_path);
     }
@@ -1010,12 +1041,23 @@ mod tests {
     #[test]
     fn test_filename_generation() {
         let timestamp = 1234567890u64;
-        let filename = build_screenshot_filename(timestamp);
+        let filename = build_screenshot_filename(timestamp, None);
 
         assert!(filename.starts_with("Snipp "));
         assert!(filename.contains(" at "));
         assert!(filename.ends_with(".png"));
         assert_eq!(filename.len(), 30);
+    }
+
+    #[test]
+    fn test_filename_generation_with_suffix() {
+        let timestamp = 1234567890u64;
+        let filename = build_screenshot_filename(timestamp, Some("-edited"));
+
+        assert!(filename.starts_with("Snipp "));
+        assert!(filename.contains(" at "));
+        assert!(filename.ends_with("-edited.png"));
+        assert_eq!(filename.len(), 37);
     }
 
     #[test]
@@ -1028,7 +1070,7 @@ mod tests {
             guard.insert(timestamp.to_string(), test_png.clone());
         }
 
-        let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp));
+        let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp, None));
         let data = {
             let guard = cache.lock().unwrap();
             guard.get(&timestamp.to_string()).cloned().unwrap()
@@ -1055,7 +1097,7 @@ mod tests {
 
     #[test]
     fn test_cleanup_drag_file_ignores_missing() {
-        let temp_path = std::env::temp_dir().join(build_screenshot_filename(2));
+        let temp_path = std::env::temp_dir().join(build_screenshot_filename(2, None));
         let _ = std::fs::remove_file(&temp_path);
         // Should not panic
         if temp_path.exists() {

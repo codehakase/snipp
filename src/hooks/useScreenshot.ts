@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { listen, invoke } from '@/lib/tauri';
+import { listen, invoke, emit } from '@/lib/tauri';
 import { debugLog } from '@/lib/utils';
 import type { ScreenshotData } from '@/types';
 
@@ -16,6 +16,8 @@ export const useScreenshot = () => {
           setCurrentScreenshot(data);
         });
         debugLog('Screenshot listener setup successfully');
+        await emit('popup-ready', {});
+        debugLog('Emitted popup-ready signal');
         return unlisten;
       } catch (error) {
         console.error('Failed to setup screenshot listener:', error);

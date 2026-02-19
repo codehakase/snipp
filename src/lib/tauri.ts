@@ -19,3 +19,13 @@ export const listen = async <T extends keyof TauriEvent>(
   }
   return window.__TAURI__.event.listen(event, (event) => handler(event.payload));
 };
+
+export const emit = async <T extends keyof TauriEvent>(
+  event: T,
+  payload?: TauriEvent[T]
+): Promise<void> => {
+  if (!window.__TAURI__?.event) {
+    throw new Error('Tauri Event API not available');
+  }
+  return window.__TAURI__.event.emit(event, payload);
+};

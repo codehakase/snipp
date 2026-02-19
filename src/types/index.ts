@@ -51,6 +51,8 @@ export interface TauriEvent {
   'screenshot-saved': { path: string };
   'screenshot-copied': {};
   'screenshot-deleted': {};
+  'popup-ready': {};
+  'editor-ready': {};
 }
 
 declare global {
@@ -67,6 +69,10 @@ declare global {
           event: T,
           handler: (event: { payload: TauriEvent[T] }) => void
         ) => Promise<() => void>;
+        emit: <T extends keyof TauriEvent>(
+          event: T,
+          payload?: TauriEvent[T]
+        ) => Promise<void>;
       };
     };
   }

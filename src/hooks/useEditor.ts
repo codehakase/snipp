@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { listen } from '@/lib/tauri';
+import { listen, emit } from '@/lib/tauri';
 import { debugLog } from '@/lib/utils';
 import type { EditorData } from '@/types';
 import type { CanvasRef } from '@/components/editor/AnnotationCanvas';
@@ -19,6 +19,8 @@ export const useEditor = () => {
           setTimestamp(data.timestamp);
         });
         debugLog('Editor listener setup successfully');
+        await emit('editor-ready', {});
+        debugLog('Emitted editor-ready signal');
         return unlisten;
       } catch (error) {
         console.error('Failed to setup editor listener:', error);
