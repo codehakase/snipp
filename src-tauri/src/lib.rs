@@ -38,15 +38,47 @@ pub struct ScreenshotData {
     pub file_path: Option<String>, // Only set when saved to disk
 }
 
+/// `timestamp` is milliseconds since the Unix epoch; the displayed name is at
+/// second resolution, so callers must guard against same-second collisions via
+/// [`resolve_unique_path`] before writing to disk.
 fn build_screenshot_filename(timestamp: u64, suffix: Option<&str>) -> String {
     let formatted = Local
-        .timestamp_opt(timestamp as i64, 0)
+        .timestamp_opt((timestamp / 1000) as i64, 0)
         .single()
         .map(|dt| dt.format("%y-%m-%d at %H.%M.%S").to_string())
         .unwrap_or_else(|| timestamp.to_string());
     match suffix {
         Some(s) => format!("Snipp {}{}.png", formatted, s),
         None => format!("Snipp {}.png", formatted),
+    }
+}
+
+/// Disambiguates a save path so two captures that share a second (and therefore
+/// a display filename) don't silently overwrite each other on disk.
+fn resolve_unique_path(path: PathBuf) -> PathBuf {
+    if !path.exists() {
+        return path;
+    }
+
+    let parent = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Snipp")
+        .to_string();
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .map(|e| format!(".{}", e))
+        .unwrap_or_default();
+
+    let mut counter = 1;
+    loop {
+        let candidate = parent.join(format!("{} ({}){}", stem, counter, ext));
+        if !candidate.exists() {
+            return candidate;
+        }
+        counter += 1;
     }
 }
 
@@ -63,11 +95,11 @@ async fn capture_screenshot_internal(
     config_state: State<'_, ConfigState>,
 ) -> Result<ScreenshotData, String> {
     println!("Starting memory-first screenshot capture...");
-    
+
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
     
     let filename = build_screenshot_filename(timestamp, None);
     
@@ -138,11 +170,11 @@ async fn capture_screenshot_internal_with_auto_copy(
     auto_copy: bool,
 ) -> Result<ScreenshotData, String> {
     println!("Starting memory-first screenshot capture (auto_copy={})...", auto_copy);
-    
+
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
     
     let filename = build_screenshot_filename(timestamp, None);
     
@@ -209,11 +241,11 @@ async fn capture_full_screen(
     config_state: State<'_, ConfigState>,
 ) -> Result<ScreenshotData, String> {
     println!("Starting full screen capture...");
-    
+
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or_default();
     
     let filename = build_screenshot_filename(timestamp, None);
     
@@ -437,8 +469,8 @@ async fn save_to_disk(
     let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
     
     let filename = build_screenshot_filename(timestamp, None);
-    let file_path = PathBuf::from(&save_location).join(&filename);
-    
+    let file_path = resolve_unique_path(PathBuf::from(&save_location).join(&filename));
+
     if let Some(parent) = file_path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("Failed to create save directory: {}", e))?;
@@ -761,8 +793,8 @@ async fn save_edited_screenshot(
         .decode(&base64_image)
         .map_err(|e| format!("Failed to decode image: {}", e))?;
 
-    let filename = build_screenshot_filename(timestamp, None);
-    let file_path = std::path::PathBuf::from(&save_location).join(&filename);
+    let filename = build_screenshot_filename(timestamp, Some("-edited"));
+    let file_path = resolve_unique_path(std::path::PathBuf::from(&save_location).join(&filename));
 
     if let Some(parent) = file_path.parent() {
         std::fs::create_dir_all(parent)
@@ -1093,6 +1125,32 @@ mod tests {
             let mut guard = cache.lock().unwrap();
             guard.remove(&timestamp.to_string());
         }
+    }
+
+    #[test]
+    fn test_resolve_unique_path_returns_original_when_free() {
+        let dir = std::env::temp_dir().join(format!("snipp_unique_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("Snipp test.png");
+        let _ = std::fs::remove_file(&path);
+
+        assert_eq!(resolve_unique_path(path.clone()), path);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_resolve_unique_path_appends_counter_on_collision() {
+        let dir = std::env::temp_dir().join(format!("snipp_unique_collide_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("Snipp test.png");
+        std::fs::write(&path, b"x").unwrap();
+
+        let resolved = resolve_unique_path(path.clone());
+        assert_ne!(resolved, path);
+        assert_eq!(resolved, dir.join("Snipp test (1).png"));
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
