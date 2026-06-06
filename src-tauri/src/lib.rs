@@ -602,31 +602,54 @@ async fn get_recent_screenshots(
     history_state: State<'_, HistoryState>,
     thumbnail_state: State<'_, ThumbnailState>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let history = history_state.lock().unwrap();
-    let thumbnail_gen = thumbnail_state.lock().unwrap();
-    
-    let recent_screenshots = history.get_recent_screenshots(10);
-    let mut screenshots_with_thumbnails = Vec::new();
-    
-    for screenshot in recent_screenshots {
-        let thumbnail_base64 = if std::path::Path::new(&screenshot.file_path).exists() {
-            thumbnail_gen.get_thumbnail_base64(&screenshot.file_path, 64)
-                .unwrap_or_else(|_| "".to_string())
-        } else {
-            "".to_string()
-        };
-        
-        let screenshot_data = serde_json::json!({
-            "file_path": screenshot.file_path,
-            "timestamp": screenshot.timestamp,
-            "filename": screenshot.filename,
-            "thumbnail": thumbnail_base64,
-        });
-        
-        screenshots_with_thumbnails.push(screenshot_data);
-    }
-    
-    Ok(screenshots_with_thumbnails)
+    // Snapshot the data we need, then release both locks before any IO/CPU work
+    // so a concurrent capture or config update is never blocked behind thumbnail
+    // decoding.
+    let recent: Vec<(String, chrono::DateTime<chrono::Utc>, String)> = {
+        let history = history_state
+            .lock()
+            .map_err(|e| format!("History lock poisoned: {}", e))?;
+        history
+            .get_recent_screenshots(10)
+            .into_iter()
+            .map(|s| (s.file_path.clone(), s.timestamp, s.filename.clone()))
+            .collect()
+    };
+
+    let thumbnail_gen = {
+        let guard = thumbnail_state
+            .lock()
+            .map_err(|e| format!("Thumbnail lock poisoned: {}", e))?;
+        guard.clone()
+    };
+
+    // Thumbnail generation decodes, resizes and re-encodes images; keep it off
+    // the async runtime threads.
+    let screenshots = tokio::task::spawn_blocking(move || {
+        recent
+            .into_iter()
+            .map(|(file_path, timestamp, filename)| {
+                let thumbnail = if std::path::Path::new(&file_path).exists() {
+                    thumbnail_gen
+                        .get_thumbnail_base64(&file_path, 64)
+                        .unwrap_or_default()
+                } else {
+                    String::new()
+                };
+
+                serde_json::json!({
+                    "file_path": file_path,
+                    "timestamp": timestamp,
+                    "filename": filename,
+                    "thumbnail": thumbnail,
+                })
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| format!("Thumbnail generation task failed: {}", e))?;
+
+    Ok(screenshots)
 }
 
 #[tauri::command]

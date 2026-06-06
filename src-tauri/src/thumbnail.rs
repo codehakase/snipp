@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::fs;
 use base64::Engine;
 
+#[derive(Clone)]
 pub struct ThumbnailGenerator {
     cache_dir: PathBuf,
 }
@@ -66,7 +67,9 @@ impl ThumbnailGenerator {
             ((max_size as f32 * aspect_ratio) as u32, max_size)
         };
         
-        img.resize(new_width, new_height, image::imageops::FilterType::Lanczos3)
+        // Triangle is visually indistinguishable from Lanczos3 at thumbnail
+        // sizes and noticeably cheaper to compute.
+        img.resize(new_width, new_height, image::imageops::FilterType::Triangle)
     }
     
     
