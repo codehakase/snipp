@@ -311,14 +311,27 @@ async fn capture_full_screen(
     Ok(screenshot_data)
 }
 
-async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotData) -> Result<(), String> {
-    println!("Creating popup window for screenshot: {}", screenshot_data.filename);
+/// Waits (up to 3s) for a window to emit its one-shot "ready" handshake before
+/// the first payload is delivered. Used only when a window is freshly built.
+async fn wait_for_window_ready(window: &tauri::WebviewWindow, ready_event: &str) {
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
+    let ready_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(ready_tx)));
+    let ready_tx_clone = ready_tx.clone();
 
-    if let Some(existing_popup) = app_handle.get_webview_window("popup") {
-        println!("Closing existing popup window");
-        existing_popup.close().map_err(|e| format!("Failed to close existing popup: {}", e))?;
-        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
-    }
+    let unlisten_id = window.listen(ready_event.to_string(), move |_event| {
+        if let Ok(mut guard) = ready_tx_clone.lock() {
+            if let Some(tx) = guard.take() {
+                let _ = tx.send(());
+            }
+        }
+    });
+
+    let _ = tokio::time::timeout(tokio::time::Duration::from_secs(3), ready_rx).await;
+    window.unlisten(unlisten_id);
+}
+
+async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotData) -> Result<(), String> {
+    println!("Showing popup window for screenshot: {}", screenshot_data.filename);
 
     let popup_width = 320.0;
     let popup_height = 220.0;
@@ -333,59 +346,52 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
         (padding, 600.0)
     };
 
-    let popup_window = WebviewWindowBuilder::new(
-        app_handle,
-        "popup",
-        WebviewUrl::App("popup.html".into())
-    )
-    .title("Screenshot Captured")
-    .inner_size(popup_width, popup_height)
-    .position(x_position, y_position)
-    .decorations(false)
-    .transparent(true)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .resizable(false)
-    .minimizable(false)
-    .maximizable(false)
-    .disable_drag_drop_handler()
-    .build()
-    .map_err(|e| format!("Failed to create popup window: {}", e))?;
-    
-    println!("Popup window created successfully");
-    
-    popup_window.show()
-        .map_err(|e| format!("Failed to show popup: {}", e))?;
+    // Reuse the live popup window when present. Re-creating the WebView on every
+    // capture is the main hotkey-to-preview latency source, so we only build
+    // (and wait for the ready handshake) the first time the window is missing.
+    let popup_window = match app_handle.get_webview_window("popup") {
+        Some(window) => window,
+        None => {
+            let window = WebviewWindowBuilder::new(
+                app_handle,
+                "popup",
+                WebviewUrl::App("popup.html".into())
+            )
+            .title("Screenshot Captured")
+            .inner_size(popup_width, popup_height)
+            .position(x_position, y_position)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .skip_taskbar(true)
+            .resizable(false)
+            .minimizable(false)
+            .maximizable(false)
+            .visible(false)
+            .disable_drag_drop_handler()
+            .build()
+            .map_err(|e| format!("Failed to create popup window: {}", e))?;
 
-    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
-    let ready_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(ready_tx)));
-    let ready_tx_clone = ready_tx.clone();
-
-    let unlisten_id = popup_window.listen("popup-ready", move |_event| {
-        if let Some(tx) = ready_tx_clone.lock().unwrap().take() {
-            let _ = tx.send(());
+            wait_for_window_ready(&window, "popup-ready").await;
+            window
         }
-    });
+    };
 
-    println!("Waiting for popup-ready signal (3s timeout)...");
-    let result = tokio::time::timeout(
-        tokio::time::Duration::from_secs(3),
-        ready_rx
-    ).await;
+    popup_window
+        .set_position(tauri::LogicalPosition::new(x_position, y_position))
+        .map_err(|e| format!("Failed to position popup: {}", e))?;
 
-    let _ = popup_window.unlisten(unlisten_id);
-
-    match result {
-        Ok(Ok(_)) => println!("Received popup-ready signal"),
-        Ok(Err(_)) => println!("Ready channel closed unexpectedly"),
-        Err(_) => println!("Timeout waiting for popup-ready, emitting anyway"),
-    }
-    
+    // Emit before showing so the persisted webview swaps to the new screenshot
+    // without flashing the previous one.
     popup_window.emit("screenshot-data", screenshot_data)
         .map_err(|e| format!("Failed to emit screenshot data: {}", e))?;
-    
+
+    popup_window.show()
+        .map_err(|e| format!("Failed to show popup: {}", e))?;
+    let _ = popup_window.set_focus();
+
     println!("Screenshot data emitted successfully");
-    
+
     Ok(())
 }
 
@@ -516,9 +522,10 @@ async fn delete_from_memory(timestamp: u64) -> Result<(), String> {
 
 #[tauri::command]
 async fn close_popup_window(app_handle: AppHandle) -> Result<(), String> {
+    // Hide rather than close so the WebView stays warm for the next capture.
     if let Some(popup_window) = app_handle.get_webview_window("popup") {
-        popup_window.close()
-            .map_err(|e| format!("Failed to close popup: {}", e))?;
+        popup_window.hide()
+            .map_err(|e| format!("Failed to hide popup: {}", e))?;
     }
     Ok(())
 }
