@@ -7,22 +7,19 @@ use tauri::{
 use tauri_plugin_opener::OpenerExt;
 
 use crate::{AppConfig, ConfigState};
-use crate::config::DEFAULT_FULLSCREEN_HOTKEY;
 
 pub fn create_tray_menu(
     app: &AppHandle,
     config: &AppConfig,
 ) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
     let capture_area_hotkey = format_hotkey_for_menu(&config.capture_hotkey);
-    let capture_screen_hotkey = format_hotkey_for_menu(DEFAULT_FULLSCREEN_HOTKEY);
-    let dashboard_hotkey = format_hotkey_for_menu(&config.preferences_hotkey);
-    
+
     let open_snipp = MenuItem::with_id(
-        app, 
-        "open_snipp", 
-        "Open Snipp", 
-        true, 
-        Some(dashboard_hotkey)
+        app,
+        "open_snipp",
+        "Open Snipp",
+        true,
+        None::<&str>,
     )?;
     let separator1 = PredefinedMenuItem::separator(app)?;
     let capture_screen = MenuItem::with_id(
@@ -30,7 +27,7 @@ pub fn create_tray_menu(
         "capture_screen",
         "Capture Full Screen",
         true,
-        Some(capture_screen_hotkey),
+        None::<&str>,
     )?;
     let capture_area = MenuItem::with_id(
         app,

@@ -15,7 +15,6 @@ export interface EditorData {
 export interface AppConfig {
   default_save_location: string;
   capture_hotkey: string;
-  preferences_hotkey: string;
   auto_copy_after_capture: boolean;
   auto_copy_after_edit: boolean;
 }

@@ -130,10 +130,8 @@ export function Dashboard() {
       
       if (editingShortcut === 'capture') {
         handleConfigChange({ capture_hotkey: tauriHotkey });
-      } else if (editingShortcut === 'preferences') {
-        handleConfigChange({ preferences_hotkey: tauriHotkey });
       }
-      
+
       setEditingShortcut(null);
       setTempHotkey('');
     } else {
@@ -258,9 +256,6 @@ export function Dashboard() {
                   </div>
                 </div>
               </div>
-              <kbd className="text-xs font-mono text-muted-foreground">
-                ⌃⇧F
-              </kbd>
             </Button>
 
             <Button 
@@ -341,36 +336,6 @@ export function Dashboard() {
                     className="font-mono text-sm h-8 px-2"
                   >
                     {formatHotkeyForDisplay(config.capture_hotkey)}
-                    <Edit3 className="w-3 h-3 ml-2" />
-                  </Button>
-                )}
-              </div>
-
-              {/* Preferences Hotkey */}
-              <div className="flex items-center justify-between p-4 border border-border rounded-md hover:bg-muted/50 transition-colors">
-                <span className="text-sm">Open Dashboard</span>
-                {editingShortcut === 'preferences' ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-accent animate-pulse font-mono">
-                      {tempHotkey || 'Press keys...'}
-                    </span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={cancelEditingShortcut}
-                      className="h-6 w-6 p-0"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => startEditingShortcut('preferences')}
-                    className="font-mono text-sm h-8 px-2"
-                  >
-                    {formatHotkeyForDisplay(config.preferences_hotkey)}
                     <Edit3 className="w-3 h-3 ml-2" />
                   </Button>
                 )}
