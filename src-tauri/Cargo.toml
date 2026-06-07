@@ -1,8 +1,8 @@
 [package]
 name = "snipp-app"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "A minimal screenshot capture and annotation tool for macOS."
+authors = ["Francis Sunday <codehakase@gmail.com>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -34,10 +34,6 @@ image = "0.24"
 chrono = { version = "0.4", features = ["serde"] }
 tauri-plugin-positioner = { version = "2.0.0", features = ["tray-icon"] }
 tauri-plugin-drag = "2.1.0"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.25"
-objc = "0.2"
 
 [profile.dev]
 incremental = true

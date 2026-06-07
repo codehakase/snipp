@@ -9,11 +9,6 @@ use base64::prelude::*;
 use chrono::{Local, TimeZone};
 
 
-#[cfg(target_os = "macos")]
-use cocoa::appkit::NSEvent;
-#[cfg(target_os = "macos")]
-use cocoa::foundation::NSAutoreleasePool;
-
 type ScreenshotCache = Mutex<HashMap<String, Vec<u8>>>;
 static SCREENSHOT_CACHE: std::sync::OnceLock<ScreenshotCache> = std::sync::OnceLock::new();
 
@@ -254,26 +249,6 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
     println!("Screenshot data emitted successfully");
 
     Ok(())
-}
-
-#[cfg(target_os = "macos")]
-#[allow(dead_code)]
-fn get_cursor_position() -> (f64, f64) {
-    unsafe {
-        let _pool = NSAutoreleasePool::new(cocoa::base::nil);
-        let mouse_location = NSEvent::mouseLocation(cocoa::base::nil);
-        
-        let screen = cocoa::appkit::NSScreen::mainScreen(cocoa::base::nil);
-        let screen_frame = cocoa::appkit::NSScreen::frame(screen);
-        let screen_height = screen_frame.size.height;
-        
-        (mouse_location.x, screen_height - mouse_location.y)
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn get_cursor_position() -> (f64, f64) {
-    (600.0, 400.0)
 }
 
 fn write_png_bytes_to_clipboard(app_handle: &AppHandle, png_bytes: &[u8]) -> Result<(), String> {
@@ -922,13 +897,6 @@ mod tests {
         };
 
         assert_eq!(retrieved_data, Some(test_data));
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    #[test]
-    fn test_get_cursor_position_fallback() {
-        let position = get_cursor_position();
-        assert_eq!(position, (600.0, 400.0));
     }
 
     #[test]
