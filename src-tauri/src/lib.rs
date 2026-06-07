@@ -38,9 +38,7 @@ pub struct ScreenshotData {
     pub file_path: Option<String>, // Only set when saved to disk
 }
 
-/// `timestamp` is milliseconds since the Unix epoch; the displayed name is at
-/// second resolution, so callers must guard against same-second collisions via
-/// [`resolve_unique_path`] before writing to disk.
+/// `timestamp` is milliseconds; the displayed name is second-resolution.
 fn build_screenshot_filename(timestamp: u64, suffix: Option<&str>) -> String {
     let formatted = Local
         .timestamp_opt((timestamp / 1000) as i64, 0)
@@ -53,8 +51,7 @@ fn build_screenshot_filename(timestamp: u64, suffix: Option<&str>) -> String {
     }
 }
 
-/// Disambiguates a save path so two captures that share a second (and therefore
-/// a display filename) don't silently overwrite each other on disk.
+/// Appends ` (n)` when the path is taken, so same-named captures don't overwrite.
 fn resolve_unique_path(path: PathBuf) -> PathBuf {
     if !path.exists() {
         return path;
@@ -311,8 +308,7 @@ async fn capture_full_screen(
     Ok(screenshot_data)
 }
 
-/// Waits (up to 3s) for a window to emit its one-shot "ready" handshake before
-/// the first payload is delivered. Used only when a window is freshly built.
+/// Waits (up to 3s) for a freshly built window's "ready" handshake.
 async fn wait_for_window_ready(window: &tauri::WebviewWindow, ready_event: &str) {
     let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
     let ready_tx = std::sync::Arc::new(std::sync::Mutex::new(Some(ready_tx)));
@@ -346,9 +342,7 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
         (padding, 600.0)
     };
 
-    // Reuse the live popup window when present. Re-creating the WebView on every
-    // capture is the main hotkey-to-preview latency source, so we only build
-    // (and wait for the ready handshake) the first time the window is missing.
+    // Reuse the live popup window; only build (and await ready) when it's missing.
     let popup_window = match app_handle.get_webview_window("popup") {
         Some(window) => window,
         None => {
@@ -381,8 +375,7 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
         .set_position(tauri::LogicalPosition::new(x_position, y_position))
         .map_err(|e| format!("Failed to position popup: {}", e))?;
 
-    // Emit before showing so the persisted webview swaps to the new screenshot
-    // without flashing the previous one.
+    // Emit before showing so the reused webview doesn't flash the previous shot.
     popup_window.emit("screenshot-data", screenshot_data)
         .map_err(|e| format!("Failed to emit screenshot data: {}", e))?;
 
@@ -602,9 +595,7 @@ async fn get_recent_screenshots(
     history_state: State<'_, HistoryState>,
     thumbnail_state: State<'_, ThumbnailState>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    // Snapshot the data we need, then release both locks before any IO/CPU work
-    // so a concurrent capture or config update is never blocked behind thumbnail
-    // decoding.
+    // Snapshot under the locks, then release them before any thumbnail IO/CPU.
     let recent: Vec<(String, chrono::DateTime<chrono::Utc>, String)> = {
         let history = history_state
             .lock()
@@ -623,8 +614,7 @@ async fn get_recent_screenshots(
         guard.clone()
     };
 
-    // Thumbnail generation decodes, resizes and re-encodes images; keep it off
-    // the async runtime threads.
+    // Decode/resize/encode is blocking work; keep it off the async runtime.
     let screenshots = tokio::task::spawn_blocking(move || {
         recent
             .into_iter()
