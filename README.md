@@ -44,7 +44,7 @@ npm run tauri:build
 ## Usage
 
 1. Launch Snipp
-2. Press `⌘⇧S` (Cmd+Shift+S) anywhere on your system
+2. Press `⌃⇧S` (Ctrl+Shift+S) anywhere on your system
 3. Drag to select the area you want to capture
 4. Release to save the screenshot
 
