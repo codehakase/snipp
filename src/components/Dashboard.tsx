@@ -259,7 +259,7 @@ export function Dashboard() {
                 </div>
               </div>
               <kbd className="text-xs font-mono text-muted-foreground">
-                ⌘⇧F
+                ⌃⇧F
               </kbd>
             </Button>
 

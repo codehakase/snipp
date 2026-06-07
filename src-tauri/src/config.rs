@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub const DEFAULT_FULLSCREEN_HOTKEY: &str = "CommandOrControl+Shift+F";
+pub const DEFAULT_FULLSCREEN_HOTKEY: &str = "Ctrl+Shift+F";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
@@ -17,8 +17,8 @@ impl Default for AppConfig {
         let home_dir = std::env::var("HOME").unwrap_or_default();
         Self {
             default_save_location: format!("{}/Desktop", home_dir),
-            capture_hotkey: "CommandOrControl+Shift+S".to_string(),
-            preferences_hotkey: "CommandOrControl+Comma".to_string(),
+            capture_hotkey: "Ctrl+Shift+S".to_string(),
+            preferences_hotkey: "Ctrl+Comma".to_string(),
             auto_copy_after_capture: true,
             auto_copy_after_edit: false,
         }
@@ -97,7 +97,7 @@ fn normalize_hotkey(raw_hotkey: &str) -> String {
     }
 
     let mut ordered_modifiers: Vec<String> = Vec::new();
-    for modifier in ["CommandOrControl", "Shift", "Alt", "Ctrl"] {
+    for modifier in ["CommandOrControl", "Ctrl", "Shift", "Alt"] {
         if modifiers.iter().any(|item| item == modifier) {
             ordered_modifiers.push(modifier.to_string());
         }
@@ -196,8 +196,8 @@ mod tests {
         let config = AppConfig::default();
 
         assert_eq!(config.default_save_location, "/test/home/Desktop");
-        assert_eq!(config.capture_hotkey, "CommandOrControl+Shift+S");
-        assert_eq!(config.preferences_hotkey, "CommandOrControl+Comma");
+        assert_eq!(config.capture_hotkey, "Ctrl+Shift+S");
+        assert_eq!(config.preferences_hotkey, "Ctrl+Comma");
         assert_eq!(config.auto_copy_after_capture, true);
         assert_eq!(config.auto_copy_after_edit, false);
 
@@ -291,7 +291,7 @@ mod tests {
             normalize_hotkey("command+shift+s"),
             "CommandOrControl+Shift+S"
         );
-        assert_eq!(normalize_hotkey("ctrl alt p"), "Alt+Ctrl+P");
+        assert_eq!(normalize_hotkey("ctrl alt p"), "Ctrl+Alt+P");
         assert_eq!(
             normalize_hotkey("CommandOrControl+Comma"),
             "CommandOrControl+Comma"
