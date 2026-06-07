@@ -22,7 +22,7 @@ mod history;
 mod thumbnail;
 mod tray;
 
-use config::{AppConfig, ConfigManager, DEFAULT_FULLSCREEN_HOTKEY};
+use config::{AppConfig, ConfigManager};
 use history::HistoryManager;
 use thumbnail::ThumbnailGenerator;
 
@@ -943,33 +943,6 @@ fn apply_global_shortcuts(app_handle: &AppHandle, config: &AppConfig) -> Result<
             }
         })
         .map_err(|e| format!("Failed to register capture hotkey: {}", e))?;
-
-    let preferences_hotkey = config.preferences_hotkey.clone();
-    global_shortcut
-        .on_shortcut(preferences_hotkey.as_str(), move |app, _shortcut, event| {
-            if event.state() == ShortcutState::Pressed {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                    let _ = window.center();
-                }
-            }
-        })
-        .map_err(|e| format!("Failed to register preferences hotkey: {}", e))?;
-
-    global_shortcut
-        .on_shortcut(DEFAULT_FULLSCREEN_HOTKEY, move |app, _shortcut, event| {
-            if event.state() == ShortcutState::Pressed {
-                let app_handle = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let config_state = app_handle.state::<ConfigState>();
-                    if let Err(e) = capture_full_screen(app_handle.clone(), config_state).await {
-                        eprintln!("Failed to capture full screen: {}", e);
-                    }
-                });
-            }
-        })
-        .map_err(|e| format!("Failed to register fullscreen hotkey: {}", e))?;
 
     Ok(())
 }

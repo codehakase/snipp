@@ -49,12 +49,10 @@ describe('Main.js Utility Functions', () => {
 
   test('default config should have correct structure', () => {
     const defaultConfig = {
-      capture_hotkey: 'CommandOrControl+Shift+2',
-      preferences_hotkey: 'CommandOrControl+Comma'
+      capture_hotkey: 'Ctrl+Shift+S'
     };
 
-    expect(defaultConfig.capture_hotkey).toBe('CommandOrControl+Shift+2');
-    expect(defaultConfig.preferences_hotkey).toBe('CommandOrControl+Comma');
+    expect(defaultConfig.capture_hotkey).toBe('Ctrl+Shift+S');
   });
 
   test('captureScreenshot should handle success', async () => {

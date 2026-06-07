@@ -1,13 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-pub const DEFAULT_FULLSCREEN_HOTKEY: &str = "Ctrl+Shift+F";
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub default_save_location: String,
     pub capture_hotkey: String,
-    pub preferences_hotkey: String,
     pub auto_copy_after_capture: bool,
     pub auto_copy_after_edit: bool,
 }
@@ -18,7 +15,6 @@ impl Default for AppConfig {
         Self {
             default_save_location: format!("{}/Desktop", home_dir),
             capture_hotkey: "Ctrl+Shift+S".to_string(),
-            preferences_hotkey: "Ctrl+Comma".to_string(),
             auto_copy_after_capture: true,
             auto_copy_after_edit: false,
         }
@@ -67,12 +63,9 @@ impl AppConfig {
 
     fn normalize_hotkeys(&mut self) -> bool {
         let normalized_capture = normalize_hotkey(&self.capture_hotkey);
-        let normalized_preferences = normalize_hotkey(&self.preferences_hotkey);
-        let changed = normalized_capture != self.capture_hotkey
-            || normalized_preferences != self.preferences_hotkey;
+        let changed = normalized_capture != self.capture_hotkey;
 
         self.capture_hotkey = normalized_capture;
-        self.preferences_hotkey = normalized_preferences;
 
         changed
     }
@@ -197,7 +190,6 @@ mod tests {
 
         assert_eq!(config.default_save_location, "/test/home/Desktop");
         assert_eq!(config.capture_hotkey, "Ctrl+Shift+S");
-        assert_eq!(config.preferences_hotkey, "Ctrl+Comma");
         assert_eq!(config.auto_copy_after_capture, true);
         assert_eq!(config.auto_copy_after_edit, false);
 
@@ -212,7 +204,6 @@ mod tests {
         let config = AppConfig {
             default_save_location: "/test/path".to_string(),
             capture_hotkey: "Ctrl+S".to_string(),
-            preferences_hotkey: "Ctrl+P".to_string(),
             auto_copy_after_capture: true,
             auto_copy_after_edit: true,
         };
@@ -225,7 +216,6 @@ mod tests {
             deserialized.default_save_location
         );
         assert_eq!(config.capture_hotkey, deserialized.capture_hotkey);
-        assert_eq!(config.preferences_hotkey, deserialized.preferences_hotkey);
         assert_eq!(
             config.auto_copy_after_capture,
             deserialized.auto_copy_after_capture
@@ -249,10 +239,6 @@ mod tests {
             config.default_save_location
         );
         assert_eq!(retrieved_config.capture_hotkey, config.capture_hotkey);
-        assert_eq!(
-            retrieved_config.preferences_hotkey,
-            config.preferences_hotkey
-        );
     }
 
     #[test]
@@ -265,7 +251,6 @@ mod tests {
         let new_config = AppConfig {
             default_save_location: "/new/path".to_string(),
             capture_hotkey: "Alt+S".to_string(),
-            preferences_hotkey: "Alt+P".to_string(),
             auto_copy_after_capture: false,
             auto_copy_after_edit: false,
         };
@@ -278,10 +263,6 @@ mod tests {
             new_config.default_save_location
         );
         assert_eq!(updated_config.capture_hotkey, new_config.capture_hotkey);
-        assert_eq!(
-            updated_config.preferences_hotkey,
-            new_config.preferences_hotkey
-        );
     }
 
     #[test]
