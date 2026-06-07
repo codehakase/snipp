@@ -67,8 +67,6 @@ impl ThumbnailGenerator {
             ((max_size as f32 * aspect_ratio) as u32, max_size)
         };
         
-        // Triangle is visually indistinguishable from Lanczos3 at thumbnail
-        // sizes and noticeably cheaper to compute.
         img.resize(new_width, new_height, image::imageops::FilterType::Triangle)
     }
     
