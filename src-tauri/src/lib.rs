@@ -99,7 +99,7 @@ async fn capture(
     interactive: bool,
     auto_copy: bool,
 ) -> Result<ScreenshotData, String> {
-    println!("Starting screen capture (interactive={}, auto_copy={})...", interactive, auto_copy);
+    log::debug!("Starting screen capture (interactive={}, auto_copy={})...", interactive, auto_copy);
 
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -139,7 +139,7 @@ async fn capture(
         return Err("No image data captured".to_string());
     }
 
-    println!("Captured {} bytes of image data", image_data.len());
+    log::debug!("Captured {} bytes of image data", image_data.len());
 
     let base64_image = base64::prelude::BASE64_STANDARD.encode(&image_data);
 
@@ -148,14 +148,14 @@ async fn capture(
     {
         let mut cache_guard = cache.lock().unwrap();
         cache_guard.insert(cache_key.clone(), image_data.clone());
-        println!("Stored image in memory cache with key: {}", cache_key);
+        log::debug!("Stored image in memory cache with key: {}", cache_key);
     }
 
     if auto_copy {
         if let Err(e) = write_png_bytes_to_clipboard(&app_handle, &image_data) {
-            eprintln!("Auto-copy failed: {}", e);
+            log::error!("Auto-copy failed: {}", e);
         } else {
-            println!("Auto-copied screenshot to clipboard after capture");
+            log::debug!("Auto-copied screenshot to clipboard after capture");
         }
     }
 
@@ -190,7 +190,7 @@ async fn wait_for_window_ready(window: &tauri::WebviewWindow, ready_event: &str)
 }
 
 async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotData) -> Result<(), String> {
-    println!("Showing popup window for screenshot: {}", screenshot_data.filename);
+    log::debug!("Showing popup window for screenshot: {}", screenshot_data.filename);
 
     let popup_width = 320.0;
     let popup_height = 220.0;
@@ -246,7 +246,7 @@ async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotD
         .map_err(|e| format!("Failed to show popup: {}", e))?;
     let _ = popup_window.set_focus();
 
-    println!("Screenshot data emitted successfully");
+    log::debug!("Screenshot data emitted successfully");
 
     Ok(())
 }
@@ -272,7 +272,7 @@ async fn copy_to_clipboard(
     app_handle: AppHandle,
     timestamp: u64,
 ) -> Result<(), String> {
-    println!("Copying screenshot to clipboard from memory cache: {}", timestamp);
+    log::debug!("Copying screenshot to clipboard from memory cache: {}", timestamp);
     
     let cache_key = timestamp.to_string();
     let image_data = {
@@ -284,7 +284,7 @@ async fn copy_to_clipboard(
     let image_data = image_data.ok_or("Screenshot data not found in memory cache")?;
 
     write_png_bytes_to_clipboard(&app_handle, &image_data)?;
-    println!("Successfully copied screenshot to clipboard");
+    log::debug!("Successfully copied screenshot to clipboard");
     Ok(())
 }
 
@@ -294,7 +294,7 @@ async fn save_to_disk(
     config_state: State<'_, ConfigState>,
     history_state: State<'_, HistoryState>,
 ) -> Result<String, String> {
-    println!("Saving screenshot to disk from memory cache: {}", timestamp);
+    log::debug!("Saving screenshot to disk from memory cache: {}", timestamp);
     
     let save_location = {
         let config = config_state.lock().unwrap();
@@ -322,19 +322,19 @@ async fn save_to_disk(
         .map_err(|e| format!("Failed to save file: {}", e))?;
     
     let file_path_str = file_path.to_string_lossy().to_string();
-    println!("Successfully saved screenshot to: {}", file_path_str);
+    log::debug!("Successfully saved screenshot to: {}", file_path_str);
 
     {
         let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
         let mut cache_guard = cache.lock().unwrap();
         cache_guard.remove(&cache_key);
-        println!("Evicted screenshot from memory cache after save");
+        log::debug!("Evicted screenshot from memory cache after save");
     }
     
     {
         let mut history = history_state.lock().unwrap();
         if let Err(e) = history.add_screenshot(file_path_str.clone()) {
-            eprintln!("Failed to add screenshot to history: {}", e);
+            log::error!("Failed to add screenshot to history: {}", e);
         }
     }
     
@@ -343,14 +343,14 @@ async fn save_to_disk(
 
 #[tauri::command]
 async fn delete_from_memory(timestamp: u64) -> Result<(), String> {
-    println!("Deleting screenshot from memory cache: {}", timestamp);
+    log::debug!("Deleting screenshot from memory cache: {}", timestamp);
     
     let cache_key = timestamp.to_string();
     let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     {
         let mut cache_guard = cache.lock().unwrap();
         cache_guard.remove(&cache_key);
-        println!("Removed screenshot from memory cache");
+        log::debug!("Removed screenshot from memory cache");
     }
     
     Ok(())
@@ -494,7 +494,7 @@ async fn copy_screenshot_from_path(
         .map_err(|e| format!("Failed to read image file: {}", e))?;
 
     write_png_bytes_to_clipboard(&app_handle, &image_data)?;
-    println!("Successfully copied screenshot to clipboard");
+    log::debug!("Successfully copied screenshot to clipboard");
     Ok(())
 }
 
@@ -530,14 +530,14 @@ async fn delete_screenshot(
     {
         let mut history = history_state.lock().unwrap();
         if let Err(e) = history.remove_screenshot(&file_path) {
-            eprintln!("Failed to remove screenshot from history: {}", e);
+            log::error!("Failed to remove screenshot from history: {}", e);
         }
     }
     
     {
         let thumbnail_gen = thumbnail_state.lock().unwrap();
         if let Err(e) = thumbnail_gen.remove_thumbnail(&file_path, 64) {
-            eprintln!("Failed to remove thumbnail: {}", e);
+            log::error!("Failed to remove thumbnail: {}", e);
         }
     }
     
@@ -558,7 +558,7 @@ async fn open_editor_window(
     app_handle: AppHandle,
     timestamp: u64,
 ) -> Result<(), String> {
-    println!("Opening editor window for screenshot: {}", timestamp);
+    log::debug!("Opening editor window for screenshot: {}", timestamp);
 
     let cache_key = timestamp.to_string();
     let image_data = {
@@ -600,7 +600,7 @@ async fn open_editor_window(
         }
     });
 
-    println!("Waiting for editor-ready signal (3s timeout)...");
+    log::debug!("Waiting for editor-ready signal (3s timeout)...");
     let result = tokio::time::timeout(
         tokio::time::Duration::from_secs(3),
         ready_rx
@@ -609,9 +609,9 @@ async fn open_editor_window(
     let _ = editor_window.unlisten(unlisten_id);
 
     match result {
-        Ok(Ok(_)) => println!("Received editor-ready signal"),
-        Ok(Err(_)) => println!("Ready channel closed unexpectedly"),
-        Err(_) => println!("Timeout waiting for editor-ready, emitting anyway"),
+        Ok(Ok(_)) => log::debug!("Received editor-ready signal"),
+        Ok(Err(_)) => log::debug!("Ready channel closed unexpectedly"),
+        Err(_) => log::debug!("Timeout waiting for editor-ready, emitting anyway"),
     }
 
     let editor_data = serde_json::json!({
@@ -622,7 +622,7 @@ async fn open_editor_window(
     editor_window.emit("editor-data", &editor_data)
         .map_err(|e| format!("Failed to emit editor data: {}", e))?;
 
-    println!("Editor data emitted successfully");
+    log::debug!("Editor data emitted successfully");
 
     Ok(())
 }
@@ -644,7 +644,7 @@ async fn save_edited_screenshot(
     config_state: State<'_, ConfigState>,
     history_state: State<'_, HistoryState>,
 ) -> Result<String, String> {
-    println!("Saving edited screenshot: {}", timestamp);
+    log::debug!("Saving edited screenshot: {}", timestamp);
 
     let save_location = {
         let config = config_state.lock().unwrap();
@@ -668,13 +668,13 @@ async fn save_edited_screenshot(
         .map_err(|e| format!("Failed to save file: {}", e))?;
 
     let file_path_str = file_path.to_string_lossy().to_string();
-    println!("Successfully saved edited screenshot to: {}", file_path_str);
+    log::debug!("Successfully saved edited screenshot to: {}", file_path_str);
 
     // Add to history
     {
         let mut history = history_state.lock().unwrap();
         if let Err(e) = history.add_screenshot(file_path_str.clone()) {
-            eprintln!("Failed to add screenshot to history: {}", e);
+            log::error!("Failed to add screenshot to history: {}", e);
         }
     }
 
@@ -686,9 +686,9 @@ async fn save_edited_screenshot(
 
     if should_auto_copy_edited {
         if let Err(e) = write_png_bytes_to_clipboard(&app_handle, &image_data) {
-            eprintln!("Auto-copy edited screenshot failed: {}", e);
+            log::error!("Auto-copy edited screenshot failed: {}", e);
         } else {
-            println!("Auto-copied edited screenshot to clipboard after save");
+            log::debug!("Auto-copied edited screenshot to clipboard after save");
         }
     }
 
@@ -706,14 +706,14 @@ async fn copy_edited_screenshot(
     base64_image: String,
     _timestamp: u64,
 ) -> Result<(), String> {
-    println!("Copying edited screenshot to clipboard");
+    log::debug!("Copying edited screenshot to clipboard");
 
     let image_data = base64::prelude::BASE64_STANDARD
         .decode(&base64_image)
         .map_err(|e| format!("Failed to decode image: {}", e))?;
 
     write_png_bytes_to_clipboard(&app_handle, &image_data)?;
-    println!("Successfully copied edited screenshot to clipboard");
+    log::debug!("Successfully copied edited screenshot to clipboard");
     Ok(())
 }
 
@@ -780,7 +780,7 @@ fn apply_global_shortcuts(app_handle: &AppHandle, config: &AppConfig) -> Result<
                     drop(config_state);
                     
                     if let Err(e) = capture(app_handle, true, auto_copy).await {
-                        eprintln!("Failed to capture screenshot: {}", e);
+                        log::error!("Failed to capture screenshot: {}", e);
                     }
                 });
             }
@@ -791,6 +791,10 @@ fn apply_global_shortcuts(app_handle: &AppHandle, config: &AppConfig) -> Result<
 }
 
 pub fn run() {
+    // Verbose in debug builds, warnings-and-above in release; override with RUST_LOG.
+    let default_level = if cfg!(debug_assertions) { "debug" } else { "warn" };
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default_level)).init();
+
     let config_manager = ConfigManager::new().expect("Failed to initialize config manager");
     let history_manager = HistoryManager::new().expect("Failed to initialize history manager");
     let thumbnail_generator = ThumbnailGenerator::new().expect("Failed to initialize thumbnail generator");

@@ -24,7 +24,7 @@ impl Default for AppConfig {
 impl AppConfig {
     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
         let config_path = Self::get_config_path()?;
-        println!("config path: {}", config_path.to_string_lossy());
+        log::debug!("config path: {}", config_path.to_string_lossy());
 
         if config_path.exists() {
             let contents = std::fs::read_to_string(&config_path)?;
