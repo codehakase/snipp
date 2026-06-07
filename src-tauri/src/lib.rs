@@ -84,152 +84,8 @@ async fn capture_screenshot(
     app_handle: AppHandle,
     config_state: State<'_, ConfigState>,
 ) -> Result<ScreenshotData, String> {
-    capture_screenshot_internal(app_handle, config_state).await
-}
-
-async fn capture_screenshot_internal(
-    app_handle: AppHandle,
-    config_state: State<'_, ConfigState>,
-) -> Result<ScreenshotData, String> {
-    println!("Starting memory-first screenshot capture...");
-
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or_default();
-    
-    let filename = build_screenshot_filename(timestamp, None);
-    
-    let temp_path = std::env::temp_dir().join(format!("snipp_capture_{}.png", timestamp));
-    
-    let shell = app_handle.shell();
-    let output = shell
-        .command("screencapture")
-        .args(["-i", "-t", "png", temp_path.to_string_lossy().as_ref()])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to execute screencapture: {}", e))?;
-    
-    if !output.status.success() {
-        let _ = std::fs::remove_file(&temp_path);
-        return Err("Screenshot capture was cancelled or failed".to_string());
-    }
-    
-    let image_data = std::fs::read(&temp_path)
-        .map_err(|e| format!("Failed to read captured screenshot: {}", e))?;
-    
-    let _ = std::fs::remove_file(&temp_path);
-    
-    if image_data.is_empty() {
-        return Err("No image data captured".to_string());
-    }
-    
-    println!("Captured {} bytes of image data", image_data.len());
-    
-    let base64_image = base64::prelude::BASE64_STANDARD.encode(&image_data);
-    
-    let cache_key = timestamp.to_string();
-    let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    {
-        let mut cache_guard = cache.lock().unwrap();
-        cache_guard.insert(cache_key.clone(), image_data.clone());
-        println!("Stored image in memory cache with key: {}", cache_key);
-    }
-    
-    let screenshot_data = ScreenshotData {
-        base64_image,
-        filename: filename.clone(),
-        timestamp,
-        file_path: None, // Will be set when/if saved to disk
-    };
-    
-    // Auto-copy to clipboard if enabled
-    let should_auto_copy = {
-        let config = config_state.lock().unwrap();
-        config.get_config().auto_copy_after_capture
-    };
-    
-    if should_auto_copy {
-        if let Err(e) = write_png_bytes_to_clipboard(&app_handle, &image_data) {
-            eprintln!("Auto-copy failed: {}", e);
-        } else {
-            println!("Auto-copied screenshot to clipboard after capture");
-        }
-    }
-    
-    show_popup_window(&app_handle, &screenshot_data).await?;
-    
-    Ok(screenshot_data)
-}
-
-async fn capture_screenshot_internal_with_auto_copy(
-    app_handle: AppHandle,
-    auto_copy: bool,
-) -> Result<ScreenshotData, String> {
-    println!("Starting memory-first screenshot capture (auto_copy={})...", auto_copy);
-
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or_default();
-    
-    let filename = build_screenshot_filename(timestamp, None);
-    
-    let temp_path = std::env::temp_dir().join(format!("snipp_capture_{}.png", timestamp));
-    
-    let shell = app_handle.shell();
-    let output = shell
-        .command("screencapture")
-        .args(["-i", "-t", "png", temp_path.to_string_lossy().as_ref()])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to execute screencapture: {}", e))?;
-    
-    if !output.status.success() {
-        let _ = std::fs::remove_file(&temp_path);
-        return Err("Screenshot capture was cancelled or failed".to_string());
-    }
-    
-    let image_data = std::fs::read(&temp_path)
-        .map_err(|e| format!("Failed to read captured screenshot: {}", e))?;
-    
-    let _ = std::fs::remove_file(&temp_path);
-    
-    if image_data.is_empty() {
-        return Err("No image data captured".to_string());
-    }
-    
-    println!("Captured {} bytes of image data", image_data.len());
-    
-    let base64_image = base64::prelude::BASE64_STANDARD.encode(&image_data);
-    
-    let cache_key = timestamp.to_string();
-    let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    {
-        let mut cache_guard = cache.lock().unwrap();
-        cache_guard.insert(cache_key.clone(), image_data.clone());
-        println!("Stored image in memory cache with key: {}", cache_key);
-    }
-    
-    // Auto-copy to clipboard if enabled
-    if auto_copy {
-        if let Err(e) = write_png_bytes_to_clipboard(&app_handle, &image_data) {
-            eprintln!("Auto-copy failed: {}", e);
-        } else {
-            println!("Auto-copied screenshot to clipboard after capture");
-        }
-    }
-    
-    let screenshot_data = ScreenshotData {
-        base64_image,
-        filename: filename.clone(),
-        timestamp,
-        file_path: None,
-    };
-    
-    show_popup_window(&app_handle, &screenshot_data).await?;
-    
-    Ok(screenshot_data)
+    let auto_copy = config_state.lock().unwrap().get_config().auto_copy_after_capture;
+    capture(app_handle, true, auto_copy).await
 }
 
 #[tauri::command]
@@ -237,74 +93,86 @@ async fn capture_full_screen(
     app_handle: AppHandle,
     config_state: State<'_, ConfigState>,
 ) -> Result<ScreenshotData, String> {
-    println!("Starting full screen capture...");
+    let auto_copy = config_state.lock().unwrap().get_config().auto_copy_after_capture;
+    capture(app_handle, false, auto_copy).await
+}
+
+/// Captures the screen (interactive area selection when `interactive`, else full
+/// screen), caches the PNG, optionally copies it, and shows the preview popup.
+async fn capture(
+    app_handle: AppHandle,
+    interactive: bool,
+    auto_copy: bool,
+) -> Result<ScreenshotData, String> {
+    println!("Starting screen capture (interactive={}, auto_copy={})...", interactive, auto_copy);
 
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or_default();
-    
+
     let filename = build_screenshot_filename(timestamp, None);
-    
-    let temp_path = std::env::temp_dir().join(format!("snipp_fullscreen_{}.png", timestamp));
-    
+
+    let prefix = if interactive { "snipp_capture" } else { "snipp_fullscreen" };
+    let temp_path = std::env::temp_dir().join(format!("{}_{}.png", prefix, timestamp));
+    let temp_path_str = temp_path.to_string_lossy().to_string();
+
+    let mut args = vec!["-t", "png", temp_path_str.as_str()];
+    if interactive {
+        args.insert(0, "-i");
+    }
+
     let shell = app_handle.shell();
     let output = shell
         .command("screencapture")
-        .args(["-t", "png", temp_path.to_string_lossy().as_ref()])
+        .args(args)
         .output()
         .await
         .map_err(|e| format!("Failed to execute screencapture: {}", e))?;
-    
+
     if !output.status.success() {
         let _ = std::fs::remove_file(&temp_path);
-        return Err("Full screen capture failed".to_string());
+        return Err("Screenshot capture was cancelled or failed".to_string());
     }
-    
+
     let image_data = std::fs::read(&temp_path)
         .map_err(|e| format!("Failed to read captured screenshot: {}", e))?;
-    
+
     let _ = std::fs::remove_file(&temp_path);
-    
+
     if image_data.is_empty() {
         return Err("No image data captured".to_string());
     }
-    
-    println!("Captured {} bytes of full screen image data", image_data.len());
-    
+
+    println!("Captured {} bytes of image data", image_data.len());
+
     let base64_image = base64::prelude::BASE64_STANDARD.encode(&image_data);
-    
+
     let cache_key = timestamp.to_string();
     let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     {
         let mut cache_guard = cache.lock().unwrap();
         cache_guard.insert(cache_key.clone(), image_data.clone());
-        println!("Stored full screen image in memory cache with key: {}", cache_key);
+        println!("Stored image in memory cache with key: {}", cache_key);
     }
-    
-    // Auto-copy to clipboard if enabled
-    let should_auto_copy = {
-        let config = config_state.lock().unwrap();
-        config.get_config().auto_copy_after_capture
-    };
-    
-    if should_auto_copy {
+
+    if auto_copy {
         if let Err(e) = write_png_bytes_to_clipboard(&app_handle, &image_data) {
             eprintln!("Auto-copy failed: {}", e);
         } else {
             println!("Auto-copied screenshot to clipboard after capture");
         }
     }
-    
+
     let screenshot_data = ScreenshotData {
         base64_image,
-        filename: filename.clone(),
+        filename,
         timestamp,
         file_path: None,
     };
-    
+
     show_popup_window(&app_handle, &screenshot_data).await?;
-    
+
     Ok(screenshot_data)
 }
 
@@ -936,7 +804,7 @@ fn apply_global_shortcuts(app_handle: &AppHandle, config: &AppConfig) -> Result<
                     let auto_copy = config_state.lock().unwrap().get_config().auto_copy_after_capture;
                     drop(config_state);
                     
-                    if let Err(e) = capture_screenshot_internal_with_auto_copy(app_handle, auto_copy).await {
+                    if let Err(e) = capture(app_handle, true, auto_copy).await {
                         eprintln!("Failed to capture screenshot: {}", e);
                     }
                 });
