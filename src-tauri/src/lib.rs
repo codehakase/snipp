@@ -146,7 +146,20 @@ async fn capture(
     let cache_key = timestamp.to_string();
     let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     {
+        const MAX_CACHE_ENTRIES: usize = 50;
         let mut cache_guard = cache.lock().unwrap();
+        // Cap the cache: when full, evict the oldest entry (smallest timestamp
+        // key) before inserting the new one (FIFO).
+        if cache_guard.len() >= MAX_CACHE_ENTRIES {
+            if let Some(oldest_key) = cache_guard
+                .keys()
+                .min_by_key(|k| k.parse::<u64>().unwrap_or(u64::MAX))
+                .cloned()
+            {
+                cache_guard.remove(&oldest_key);
+                log::debug!("Cache at capacity, evicted oldest entry: {}", oldest_key);
+            }
+        }
         cache_guard.insert(cache_key.clone(), image_data.clone());
         log::debug!("Stored image in memory cache with key: {}", cache_key);
     }
@@ -358,6 +371,11 @@ async fn delete_from_memory(timestamp: u64) -> Result<(), String> {
 
 #[tauri::command]
 async fn close_popup_window(app_handle: AppHandle) -> Result<(), String> {
+    // Evict any cached screenshots: callers that still need the data (editor,
+    // save, delete) have already read or removed their specific entry by now.
+    if let Some(cache) = SCREENSHOT_CACHE.get() {
+        cache.lock().unwrap().clear();
+    }
     // Hide rather than close so the WebView stays warm for the next capture.
     if let Some(popup_window) = app_handle.get_webview_window("popup") {
         popup_window.hide()
@@ -890,17 +908,56 @@ mod tests {
         let test_key = "test_timestamp".to_string();
         let test_data = vec![1, 2, 3, 4, 5];
 
-        {
-            let mut cache_guard = cache.lock().unwrap();
-            cache_guard.insert(test_key.clone(), test_data.clone());
+        // Hold the lock for the whole insert/read/clear sequence so this test
+        // can't interleave with other tests that share the global cache (the
+        // clear() below would otherwise wipe their entries mid-run).
+        let mut cache_guard = cache.lock().unwrap();
+
+        cache_guard.insert(test_key.clone(), test_data.clone());
+        assert_eq!(cache_guard.get(&test_key).cloned(), Some(test_data));
+
+        // close_popup_window clears the whole cache; verify that empties it.
+        cache_guard.clear();
+        assert!(cache_guard.is_empty());
+        assert!(cache_guard.get(&test_key).is_none());
+    }
+
+    #[test]
+    fn test_cache_fifo_eviction_at_capacity() {
+        const MAX_CACHE_ENTRIES: usize = 50;
+
+        // Use a private map so this test is independent of the shared global
+        // cache state, then exercise the same FIFO logic capture() uses.
+        let mut map: HashMap<String, Vec<u8>> = HashMap::new();
+
+        // Fill to capacity with sequential timestamp keys.
+        let base: u64 = 1_700_000_000_000;
+        for i in 0..MAX_CACHE_ENTRIES as u64 {
+            map.insert((base + i).to_string(), vec![i as u8]);
+        }
+        assert_eq!(map.len(), MAX_CACHE_ENTRIES);
+
+        let oldest_key = base.to_string();
+        assert!(map.contains_key(&oldest_key));
+
+        // Insert beyond capacity, evicting the oldest (smallest timestamp) first.
+        for i in MAX_CACHE_ENTRIES as u64..(MAX_CACHE_ENTRIES as u64 + 5) {
+            if map.len() >= MAX_CACHE_ENTRIES {
+                let oldest = map
+                    .keys()
+                    .min_by_key(|k| k.parse::<u64>().unwrap_or(u64::MAX))
+                    .cloned()
+                    .unwrap();
+                map.remove(&oldest);
+            }
+            map.insert((base + i).to_string(), vec![i as u8]);
         }
 
-        let retrieved_data = {
-            let cache_guard = cache.lock().unwrap();
-            cache_guard.get(&test_key).cloned()
-        };
-
-        assert_eq!(retrieved_data, Some(test_data));
+        // Never exceeds the cap, and the original oldest entry is gone.
+        assert_eq!(map.len(), MAX_CACHE_ENTRIES);
+        assert!(!map.contains_key(&oldest_key));
+        // Newest entry is present.
+        assert!(map.contains_key(&(base + MAX_CACHE_ENTRIES as u64 + 4).to_string()));
     }
 
     #[test]
@@ -930,16 +987,14 @@ mod tests {
         let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
         let timestamp = 8888888888u64;
         let test_png = vec![0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
-        {
-            let mut guard = cache.lock().unwrap();
-            guard.insert(timestamp.to_string(), test_png.clone());
-        }
+
+        // Hold the lock across insert + read so a concurrent cache clear (from
+        // test_screenshot_cache_operations) can't evict our entry mid-run.
+        let mut guard = cache.lock().unwrap();
+        guard.insert(timestamp.to_string(), test_png.clone());
 
         let temp_path = std::env::temp_dir().join(build_screenshot_filename(timestamp, None));
-        let data = {
-            let guard = cache.lock().unwrap();
-            guard.get(&timestamp.to_string()).cloned().unwrap()
-        };
+        let data = guard.get(&timestamp.to_string()).cloned().unwrap();
         std::fs::write(&temp_path, &data).unwrap();
 
         assert!(temp_path.exists());
@@ -954,10 +1009,7 @@ mod tests {
 
         // Cleanup
         std::fs::remove_file(&temp_path).unwrap();
-        {
-            let mut guard = cache.lock().unwrap();
-            guard.remove(&timestamp.to_string());
-        }
+        guard.remove(&timestamp.to_string());
     }
 
     #[test]
