@@ -90,7 +90,7 @@ fn normalize_hotkey(raw_hotkey: &str) -> String {
     }
 
     let mut ordered_modifiers: Vec<String> = Vec::new();
-    for modifier in ["CommandOrControl", "Ctrl", "Shift", "Alt"] {
+    for modifier in ["CommandOrControl", "Ctrl", "Alt", "Shift", "Super"] {
         if modifiers.iter().any(|item| item == modifier) {
             ordered_modifiers.push(modifier.to_string());
         }
@@ -106,9 +106,8 @@ fn normalize_hotkey(raw_hotkey: &str) -> String {
 fn normalize_hotkey_part(part: &str) -> String {
     let lower = part.to_ascii_lowercase();
     match lower.as_str() {
-        "cmd" | "command" | "commandorcontrol" | "commandorctrl" | "meta" | "super" => {
-            "CommandOrControl".to_string()
-        }
+        "cmd" | "command" | "meta" | "super" => "Super".to_string(),
+        "commandorcontrol" | "commandorctrl" => "CommandOrControl".to_string(),
         "ctrl" | "control" => "Ctrl".to_string(),
         "alt" | "option" => "Alt".to_string(),
         "shift" => "Shift".to_string(),
@@ -148,7 +147,7 @@ fn normalize_key_name(part: &str) -> String {
 }
 
 fn is_modifier(value: &str) -> bool {
-    matches!(value, "CommandOrControl" | "Shift" | "Alt" | "Ctrl")
+    matches!(value, "CommandOrControl" | "Super" | "Shift" | "Alt" | "Ctrl")
 }
 
 pub struct ConfigManager {
@@ -267,10 +266,11 @@ mod tests {
 
     #[test]
     fn test_normalize_hotkey_formats() {
-        assert_eq!(normalize_hotkey("Cmd+Shift+2"), "CommandOrControl+Shift+2");
+        assert_eq!(normalize_hotkey("Cmd+Shift+2"), "Shift+Super+2");
+        assert_eq!(normalize_hotkey("command+shift+s"), "Shift+Super+S");
         assert_eq!(
-            normalize_hotkey("command+shift+s"),
-            "CommandOrControl+Shift+S"
+            normalize_hotkey("Ctrl+Alt+Shift+Cmd+S"),
+            "Ctrl+Alt+Shift+Super+S"
         );
         assert_eq!(normalize_hotkey("ctrl alt p"), "Ctrl+Alt+P");
         assert_eq!(
