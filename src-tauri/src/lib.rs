@@ -1,4 +1,4 @@
-use tauri::{App, AppHandle, Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{App, AppHandle, Emitter, Listener, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_dialog::DialogExt;
@@ -840,6 +840,18 @@ pub fn run() {
             setup_global_shortcuts(app)?;
             
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // The "main" (preferences) window is a tray app surface: closing it
+            // should hide it, not destroy it. Destroying leaves get_webview_window
+            // returning None, so the tray "Open Snipp" item can no longer reopen it
+            // until the app is restarted.
+            if window.label() == "main" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             capture_screenshot,
