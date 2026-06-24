@@ -6,23 +6,39 @@ import type { AppConfig } from '@/types';
 
 const formatHotkeyForDisplay = (hotkey: string): string => {
   return hotkey
-    .replace('CommandOrControl', '⌘')
-    .replace('Shift', '⇧')
-    .replace('Alt', '⌥')
-    .replace('Ctrl', '⌃')
-    .replace('Comma', ',')
-    .replace('Period', '.')
+    .replace(/CommandOrControl/g, '⌘')  // legacy / cross-platform
+    .replace(/Super/g, '⌘')             // Command key (macOS)
+    .replace(/Control/g, '⌃')
+    .replace(/Ctrl/g, '⌃')
+    .replace(/Shift/g, '⇧')
+    .replace(/Alt/g, '⌥')
+    .replace(/Comma/g, ',')
+    .replace(/Period/g, '.')
     .replace(/\+/g, ' ');
 };
 
 const parseHotkeyFromDisplay = (displayHotkey: string): string => {
   return displayHotkey
-    .replace('⌘', 'CommandOrControl')
-    .replace('⇧', 'Shift')
-    .replace('⌥', 'Alt')
-    .replace('⌃', 'Ctrl')
+    .replace(/⌘/g, 'Super')
+    .replace(/⌃/g, 'Ctrl')
+    .replace(/⇧/g, 'Shift')
+    .replace(/⌥/g, 'Alt')
     .replace(/ /g, '+');
 };
+
+// Resolve the physical key (event.code) to a hotkey token, immune to Shift
+// rewriting the character (the hyper chord always holds Shift, turning 1 -> "!").
+// Restricted to the set the backend/plugin already handle.
+const codeToKey = (code: string): string | null => {
+  if (/^Key[A-Z]$/.test(code))  return code.slice(3);   // KeyX   -> X
+  if (/^Digit[0-9]$/.test(code)) return code.slice(5);   // Digit1 -> 1
+  if (/^F\d{1,2}$/.test(code))   return code;            // F1..F12
+  if (code === 'Comma')  return 'Comma';
+  if (code === 'Period') return 'Period';
+  return null;
+};
+
+const MODIFIER_KEYS = new Set(['Meta', 'Control', 'Shift', 'Alt']);
 
 export function Dashboard() {
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -104,39 +120,41 @@ export function Dashboard() {
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (!editingShortcut) return;
-    
+
     event.preventDefault();
-    
+
     if (event.key === 'Escape') {
       cancelEditingShortcut();
       return;
     }
-    
-    const keys: string[] = [];
-    if (event.metaKey || event.ctrlKey) keys.push('⌘');
-    if (event.shiftKey) keys.push('⇧');
-    if (event.altKey) keys.push('⌥');
-    
-    if (event.key !== 'Meta' && event.key !== 'Control' && 
-        event.key !== 'Shift' && event.key !== 'Alt' &&
-        event.key !== 'Escape') {
-      const key = event.key.length === 1 ? event.key.toUpperCase() : event.key;
-      keys.push(key);
-    }
-    
-    if (keys.length >= 2) {
-      const displayHotkey = keys.join(' ');
-      const tauriHotkey = parseHotkeyFromDisplay(displayHotkey);
-      
-      if (editingShortcut === 'capture') {
-        handleConfigChange({ capture_hotkey: tauriHotkey });
-      }
 
-      setEditingShortcut(null);
-      setTempHotkey('');
-    } else {
-      setTempHotkey(keys.join(' '));
+    // Canonical macOS order ⌃ ⌥ ⇧ ⌘; Ctrl and Cmd are kept separate so the
+    // hyper chord (⌃⌥⇧⌘) is representable.
+    const modifiers: string[] = [];
+    if (event.ctrlKey)  modifiers.push('⌃');
+    if (event.altKey)   modifiers.push('⌥');
+    if (event.shiftKey) modifiers.push('⇧');
+    if (event.metaKey)  modifiers.push('⌘');
+
+    // Bare modifier press (incl. each key of the hyper chord): preview, keep waiting.
+    if (MODIFIER_KEYS.has(event.key)) {
+      setTempHotkey(modifiers.join(' '));
+      return;
     }
+
+    // Base key from the physical key (Shift-proof), require ≥1 modifier.
+    const key = codeToKey(event.code);
+    if (!key || modifiers.length === 0) {
+      setTempHotkey(modifiers.join(' '));
+      return;
+    }
+
+    const tauriHotkey = parseHotkeyFromDisplay([...modifiers, key].join(' '));
+    if (editingShortcut === 'capture') {
+      handleConfigChange({ capture_hotkey: tauriHotkey });
+    }
+    setEditingShortcut(null);
+    setTempHotkey('');
   }, [editingShortcut, config]);
 
   useEffect(() => {
