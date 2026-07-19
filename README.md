@@ -138,4 +138,4 @@ cargo test
 
 ## License
 
-Snipp was created by Francis Sunday ([@codehakase](https://x.com/codehakase)) and is available under the [MIT License](LICENSE).
+Snipp is available under the [MIT License](LICENSE).
