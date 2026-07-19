@@ -8,8 +8,6 @@ Snipp is a lightweight macOS screenshot tool for capturing, previewing, copying,
 
 Built with Tauri, Rust, React, TypeScript, and Fabric.js.
 
-<img width="2624" height="1826" alt="Snipp screenshot capture and annotation interface" src="https://github.com/user-attachments/assets/01bdcba0-5157-4b33-9012-f11f28395855" />
-
 ## Features
 
 - Capture a selected area with a configurable global shortcut
@@ -83,6 +81,10 @@ npm run tauri:build
 
 Build artifacts are written under `src-tauri/target/release/bundle/`.
 
+## Editor view
+
+<img width="2624" height="1826" alt="Snipp screenshot capture and annotation interface" src="https://github.com/user-attachments/assets/01bdcba0-5157-4b33-9012-f11f28395855" />
+
 ## Usage
 
 ### Capture an area
@@ -136,4 +138,4 @@ cargo test
 
 ## License
 
-Snipp was created by Francis Sunday ([@codehakase](https://x.com/codehakase)) and is available under the [MIT License](LICENSE).
+Snipp is available under the [MIT License](LICENSE).
