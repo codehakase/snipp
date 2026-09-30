@@ -17,7 +17,7 @@ export interface EditorState {
   padding: { top: number; right: number; bottom: number; left: number };
   backgroundColor: string;
   borderRadius: number;
-  zoom: number; // 0.1 to 2, where 1 = 100%
+  zoom: number; // 0 while loading; manual zoom is 0.1 to 2, where 1 = 100%
 }
 
 export function EditorApp() {
@@ -41,6 +41,7 @@ export function EditorApp() {
 
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  const [isAutoZoom, setIsAutoZoom] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const sidebarTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -62,7 +63,7 @@ export function EditorApp() {
     resizeObserver.observe(container);
 
     return () => resizeObserver.disconnect();
-  }, []);
+  }, [imageData]);
 
   // Cleanup sidebar timeout on unmount
   useEffect(() => {
@@ -102,6 +103,7 @@ export function EditorApp() {
   }, []);
 
   const handleZoomChange = useCallback((zoom: number) => {
+    setIsAutoZoom(false);
     setEditorState(prev => ({ ...prev, zoom: Math.max(0.1, Math.min(2, zoom)) }));
   }, []);
 
@@ -265,15 +267,18 @@ export function EditorApp() {
         {/* Canvas Area */}
         <div
           ref={canvasContainerRef}
-          className="flex-1 overflow-auto flex items-center justify-center p-8 bg-neutral-900"
+          className="flex-1 min-w-0 min-h-0 overflow-auto bg-neutral-900"
         >
-          <AnnotationCanvas
-            ref={canvasRef}
-            imageData={imageData}
-            editorState={editorState}
-            containerSize={containerSize}
-            onZoomCalculated={handleZoomCalculated}
-          />
+          <div className="min-w-full min-h-full w-max h-max box-border flex items-center justify-center p-8">
+            <AnnotationCanvas
+              ref={canvasRef}
+              imageData={imageData}
+              editorState={editorState}
+              containerSize={containerSize}
+              autoFit={isAutoZoom}
+              onZoomCalculated={handleZoomCalculated}
+            />
+          </div>
         </div>
 
         {/* Right Panel - Collapsible Sidebar */}

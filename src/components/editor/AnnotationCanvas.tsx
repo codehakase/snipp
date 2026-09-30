@@ -1,5 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useCallback } from 'react';
 import * as fabric from 'fabric';
+import { debugLog } from '@/lib/utils';
 import type { EditorState } from './EditorApp';
 
 // Custom metadata type for blur regions
@@ -13,6 +14,7 @@ interface AnnotationCanvasProps {
   imageData: string;
   editorState: EditorState;
   containerSize: { width: number; height: number };
+  autoFit: boolean;
   onZoomCalculated?: (zoom: number) => void;
 }
 
@@ -29,6 +31,50 @@ export interface CanvasRef {
 interface HistoryEntry {
   json: string;
   timestamp: number;
+}
+
+function hasPadding(padding: EditorState['padding']): boolean {
+  return padding.top > 0 || padding.right > 0 || padding.bottom > 0 || padding.left > 0;
+}
+
+// Fabric clip paths force large images through a size-limited bitmap cache.
+// Clip while drawing instead so the source image stays at its native resolution.
+class RoundedFabricImage extends fabric.FabricImage {
+  private cornerRadius = 0;
+
+  setCornerRadius(radius: number): void {
+    this.cornerRadius = Math.max(0, radius);
+    this.dirty = true;
+  }
+
+  _render(ctx: CanvasRenderingContext2D): void {
+    const radius = Math.min(this.cornerRadius, this.width / 2, this.height / 2);
+    if (radius <= 0) {
+      super._render(ctx);
+      return;
+    }
+
+    const left = -this.width / 2;
+    const top = -this.height / 2;
+    const right = this.width / 2;
+    const bottom = this.height / 2;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(left + radius, top);
+    ctx.lineTo(right - radius, top);
+    ctx.quadraticCurveTo(right, top, right, top + radius);
+    ctx.lineTo(right, bottom - radius);
+    ctx.quadraticCurveTo(right, bottom, right - radius, bottom);
+    ctx.lineTo(left + radius, bottom);
+    ctx.quadraticCurveTo(left, bottom, left, bottom - radius);
+    ctx.lineTo(left, top + radius);
+    ctx.quadraticCurveTo(left, top, left + radius, top);
+    ctx.closePath();
+    ctx.clip();
+    super._render(ctx);
+    ctx.restore();
+  }
 }
 
 // Parse CSS gradient to Fabric gradient
@@ -134,10 +180,10 @@ async function createBlurRegion(
 }
 
 export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
-  ({ imageData, editorState, containerSize, onZoomCalculated }, ref) => {
+  ({ imageData, editorState, containerSize, autoFit, onZoomCalculated }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<fabric.Canvas | null>(null);
-    const imageRef = useRef<fabric.FabricImage | null>(null);
+    const imageRef = useRef<RoundedFabricImage | null>(null);
     const bgRectRef = useRef<fabric.Rect | null>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const startPointRef = useRef<{ x: number; y: number } | null>(null);
@@ -145,8 +191,6 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
     const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
     const [originalImageSize, setOriginalImageSize] = useState({ width: 0, height: 0 });
     const isInitializedRef = useRef(false);
-    const isMountedRef = useRef(true);
-    const hasCalculatedInitialZoomRef = useRef(false);
 
     // History state for undo/redo
     const historyRef = useRef<HistoryEntry[]>([]);
@@ -158,7 +202,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
     useEffect(() => {
       if (!canvasRef.current || isInitializedRef.current) return;
       isInitializedRef.current = true;
-      isMountedRef.current = true;
+      const imageLoadController = new AbortController();
 
       // Get device pixel ratio for high-DPI display support
       const dpr = window.devicePixelRatio || 1;
@@ -170,15 +214,20 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         enableRetinaScaling: true,
       });
 
-      console.log('[AnnotationCanvas] Canvas initialized with DPR:', dpr);
+      debugLog('[AnnotationCanvas] Canvas initialized with DPR:', dpr);
 
       fabricRef.current = canvas;
 
       // Load the screenshot image
-      fabric.FabricImage.fromURL(`data:image/png;base64,${imageData}`).then((img) => {
-        // Skip if component was unmounted during async load
-        if (!isMountedRef.current || !fabricRef.current) {
-          console.log('[AnnotationCanvas] Skipping - component unmounted during image load');
+      RoundedFabricImage.fromURL(
+        `data:image/png;base64,${imageData}`,
+        { signal: imageLoadController.signal },
+      ).then((loadedImage) => {
+        const img = loadedImage as RoundedFabricImage;
+        // StrictMode can start a replacement canvas before the previous image
+        // load settles. Only the load owned by the active canvas may update refs.
+        if (imageLoadController.signal.aborted || fabricRef.current !== canvas) {
+          debugLog('[AnnotationCanvas] Skipping stale image load');
           return;
         }
 
@@ -186,7 +235,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         const imgHeight = img.height || 600;
 
         const dpr = window.devicePixelRatio || 1;
-        console.log('[AnnotationCanvas] Image loaded:', {
+        debugLog('[AnnotationCanvas] Image loaded:', {
           imgWidth,
           imgHeight,
           devicePixelRatio: dpr,
@@ -204,7 +253,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         const fullCanvasWidth = imgWidth + padding.left + padding.right;
         const fullCanvasHeight = imgHeight + padding.top + padding.bottom;
 
-        console.log('[AnnotationCanvas] Canvas dimensions:', { fullCanvasWidth, fullCanvasHeight });
+        debugLog('[AnnotationCanvas] Canvas dimensions:', { fullCanvasWidth, fullCanvasHeight });
 
         // Create background rectangle (full canvas size)
         const isGradient = backgroundColor.startsWith('linear-gradient');
@@ -218,6 +267,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
           width: fullCanvasWidth,
           height: fullCanvasHeight,
           fill: bgFill || backgroundColor,
+          visible: hasPadding(padding),
           rx: borderRadius,
           ry: borderRadius,
           selectable: false,
@@ -229,18 +279,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         bgRectRef.current = bgRect;
         canvas.add(bgRect);
 
-        // Apply clip path for border radius on the image
-        if (borderRadius > 0) {
-          const clipPath = new fabric.Rect({
-            width: imgWidth,
-            height: imgHeight,
-            rx: borderRadius,
-            ry: borderRadius,
-            originX: 'center',
-            originY: 'center',
-          });
-          img.set({ clipPath });
-        }
+        img.setCornerRadius(borderRadius);
 
         // Position image with padding offset
         img.set({
@@ -265,27 +304,33 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         setCanvasSize({ width: fullCanvasWidth, height: fullCanvasHeight });
 
         canvas.renderAll();
+      }).catch((error: unknown) => {
+        if (!imageLoadController.signal.aborted) {
+          debugLog('[AnnotationCanvas] Failed to load image:', error);
+        }
       });
 
       return () => {
-        isMountedRef.current = false;
-        canvas.dispose();
-        fabricRef.current = null;
-        imageRef.current = null;
-        bgRectRef.current = null;
-        isInitializedRef.current = false;
-        hasCalculatedInitialZoomRef.current = false;
-        setOriginalImageSize({ width: 0, height: 0 });
-        setCanvasSize({ width: 0, height: 0 });
+        imageLoadController.abort();
+        void canvas.dispose();
+
+        if (fabricRef.current === canvas) {
+          fabricRef.current = null;
+          imageRef.current = null;
+          bgRectRef.current = null;
+          isInitializedRef.current = false;
+          setOriginalImageSize({ width: 0, height: 0 });
+          setCanvasSize({ width: 0, height: 0 });
+        }
       };
     }, [imageData]);
 
-    // Calculate initial zoom when both containerSize and canvasSize become available
+    // Keep the canvas fitted while in automatic zoom mode. A manual zoom selection
+    // switches this off in EditorApp, so subsequent resizes preserve the user's zoom.
     useEffect(() => {
       const canvas = fabricRef.current;
 
-      // Skip if already calculated or sizes not ready
-      if (hasCalculatedInitialZoomRef.current) return;
+      if (!autoFit) return;
       if (!canvas || canvasSize.width === 0 || canvasSize.height === 0) return;
       if (containerSize.width === 0 || containerSize.height === 0) return;
 
@@ -296,7 +341,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       const scaleY = availableHeight / canvasSize.height;
       const fitZoom = Math.min(scaleX, scaleY, 1);
 
-      console.log('[AnnotationCanvas] Initial zoom calculation:', {
+      debugLog('[AnnotationCanvas] Auto-fit zoom calculation:', {
         containerSize,
         canvasSize,
         availableWidth,
@@ -315,11 +360,10 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       );
       canvas.renderAll();
 
-      hasCalculatedInitialZoomRef.current = true;
-      if (onZoomCalculated) {
+      if (onZoomCalculated && Math.abs(editorState.zoom - fitZoom) > 0.001) {
         onZoomCalculated(fitZoom);
       }
-    }, [containerSize, canvasSize, onZoomCalculated]);
+    }, [autoFit, containerSize, canvasSize, editorState.zoom, onZoomCalculated]);
 
     // Save current state to history
     const saveToHistory = useCallback(() => {
@@ -510,7 +554,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
       const fullCanvasWidth = imgWidth + padding.left + padding.right;
       const fullCanvasHeight = imgHeight + padding.top + padding.bottom;
 
-      console.log('[AnnotationCanvas] Updating canvas:', {
+      debugLog('[AnnotationCanvas] Updating canvas:', {
         padding,
         borderRadius,
         fullCanvasWidth,
@@ -533,6 +577,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         width: fullCanvasWidth,
         height: fullCanvasHeight,
         fill: bgFill || backgroundColor,
+        visible: hasPadding(padding),
         rx: borderRadius,
         ry: borderRadius,
         dirty: true,
@@ -546,20 +591,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         dirty: true,
       });
 
-      // Update clip path for border radius
-      if (borderRadius > 0) {
-        const clipPath = new fabric.Rect({
-          width: imgWidth,
-          height: imgHeight,
-          rx: borderRadius,
-          ry: borderRadius,
-          originX: 'center',
-          originY: 'center',
-        });
-        img.set({ clipPath, dirty: true });
-      } else {
-        img.set({ clipPath: undefined, dirty: true });
-      }
+      img.setCornerRadius(borderRadius);
       img.setCoords();
 
       // Update canvas element size with zoom
@@ -576,7 +608,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
     // Handle zoom changes
     useEffect(() => {
       const canvas = fabricRef.current;
-      if (!canvas || canvasSize.width === 0 || editorState.zoom <= 0) return;
+      if (autoFit || !canvas || canvasSize.width === 0 || editorState.zoom <= 0) return;
 
       canvas.setZoom(editorState.zoom);
       canvas.setDimensions(
@@ -584,7 +616,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
         { cssOnly: false }
       );
       canvas.renderAll();
-    }, [editorState.zoom, canvasSize]);
+    }, [autoFit, editorState.zoom, canvasSize]);
 
     // Update selection mode based on tool
     useEffect(() => {
@@ -985,7 +1017,7 @@ export const AnnotationCanvas = forwardRef<CanvasRef, AnnotationCanvasProps>(
     }), [canvasSize, restoreFromHistory, editorState.borderRadius]);
 
     return (
-      <div className="shadow-2xl rounded-lg overflow-hidden">
+      <div className="shadow-2xl">
         <canvas ref={canvasRef} />
       </div>
     );
