@@ -3,7 +3,7 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_dialog::DialogExt;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 use base64::prelude::*;
 use chrono::{Local, TimeZone};
@@ -14,16 +14,19 @@ static SCREENSHOT_CACHE: std::sync::OnceLock<ScreenshotCache> = std::sync::OnceL
 
 mod config;
 mod history;
+mod stats;
 mod thumbnail;
 mod tray;
 
 use config::{AppConfig, ConfigManager};
 use history::HistoryManager;
+use stats::ScreenshotCounter;
 use thumbnail::ThumbnailGenerator;
 
 type ConfigState = Mutex<ConfigManager>;
 type HistoryState = Mutex<HistoryManager>;
 type ThumbnailState = Mutex<ThumbnailGenerator>;
+type ScreenshotCounterState = Arc<ScreenshotCounter>;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 pub struct ScreenshotData {
@@ -180,8 +183,24 @@ async fn capture(
     };
 
     show_popup_window(&app_handle, &screenshot_data).await?;
+    record_successful_capture(&app_handle).await;
 
     Ok(screenshot_data)
+}
+
+async fn record_successful_capture(app_handle: &AppHandle) {
+    let counter = Arc::clone(app_handle.state::<ScreenshotCounterState>().inner());
+    let increment_result = tokio::task::spawn_blocking(move || counter.increment()).await;
+
+    match increment_result {
+        Ok(Ok(_)) => {
+            if let Err(error) = tray::update_tray_menu(app_handle) {
+                log::error!("Failed to update screenshot count in tray: {}", error);
+            }
+        }
+        Ok(Err(error)) => log::error!("Failed to increment screenshot counter: {}", error),
+        Err(error) => log::error!("Screenshot counter task failed: {}", error),
+    }
 }
 
 /// Waits (up to 3s) for a freshly built window's "ready" handshake.
@@ -404,7 +423,7 @@ async fn update_config(
     };
 
     apply_global_shortcuts(&app_handle, &updated_config)?;
-    tray::update_tray_menu(&app_handle, &updated_config)
+    tray::update_tray_menu(&app_handle)
         .map_err(|e| format!("Failed to update tray menu: {}", e))?;
     Ok(())
 }
@@ -816,6 +835,13 @@ pub fn run() {
     let config_manager = ConfigManager::new().expect("Failed to initialize config manager");
     let history_manager = HistoryManager::new().expect("Failed to initialize history manager");
     let thumbnail_generator = ThumbnailGenerator::new().expect("Failed to initialize thumbnail generator");
+    let screenshot_counter = match ScreenshotCounter::new() {
+        Ok(counter) => Arc::new(counter),
+        Err(error) => {
+            log::error!("Failed to initialize screenshot counter: {}", error);
+            return;
+        }
+    };
     
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -828,6 +854,7 @@ pub fn run() {
         .manage(ConfigState::new(config_manager))
         .manage(HistoryState::new(history_manager))
         .manage(ThumbnailState::new(thumbnail_generator))
+        .manage(screenshot_counter)
         .setup(|app| {
             #[cfg(target_os = "macos")]
             {

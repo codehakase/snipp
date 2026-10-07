@@ -1,3 +1,4 @@
+use std::sync::Mutex;
 use tauri::{
     AppHandle, Manager,
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -6,11 +7,14 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 
-use crate::{AppConfig, ConfigState};
+use crate::{AppConfig, ConfigState, ScreenshotCounterState};
+
+static TRAY_MENU_UPDATE_LOCK: Mutex<()> = Mutex::new(());
 
 pub fn create_tray_menu(
     app: &AppHandle,
     config: &AppConfig,
+    screenshot_count: u64,
 ) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
     let capture_area_hotkey = format_hotkey_for_menu(&config.capture_hotkey);
 
@@ -36,6 +40,13 @@ pub fn create_tray_menu(
         true,
         Some(capture_area_hotkey),
     )?;
+    let screenshot_count = MenuItem::with_id(
+        app,
+        "screenshot_count",
+        format_screenshot_count(screenshot_count),
+        false,
+        None::<&str>,
+    )?;
     let separator2 = PredefinedMenuItem::separator(app)?;
     let suggest_feature = MenuItem::with_id(app, "suggest_feature", "Suggest a Feature", true, None::<&str>)?;
     let report_bug = MenuItem::with_id(app, "report_bug", "Report a Bug", true, None::<&str>)?;
@@ -47,6 +58,7 @@ pub fn create_tray_menu(
         &separator1,
         &capture_screen,
         &capture_area,
+        &screenshot_count,
         &separator2,
         &suggest_feature,
         &report_bug,
@@ -64,7 +76,8 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
         let config = config_state.lock().unwrap().get_config().clone();
         config
     };
-    let menu = create_tray_menu(app, &config)?;
+    let screenshot_count = app.state::<ScreenshotCounterState>().current();
+    let menu = create_tray_menu(app, &config, screenshot_count)?;
     log::debug!("Tray menu created successfully");
     
     let icon_bytes = include_bytes!("../icons/AppIcon-32.png");
@@ -117,15 +130,30 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
-pub fn update_tray_menu(
-    app: &AppHandle,
-    config: &AppConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn update_tray_menu(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    let _update_guard = TRAY_MENU_UPDATE_LOCK
+        .lock()
+        .map_err(|error| format!("Tray menu update lock poisoned: {error}"))?;
+    let config = {
+        let config_state = app.state::<ConfigState>();
+        let config = config_state
+            .lock()
+            .map_err(|error| format!("Config lock poisoned: {error}"))?
+            .get_config()
+            .clone();
+        config
+    };
+    let screenshot_count = app.state::<ScreenshotCounterState>().current();
+
     if let Some(tray) = app.tray_by_id("main") {
-        let menu = create_tray_menu(app, config)?;
+        let menu = create_tray_menu(app, &config, screenshot_count)?;
         tray.set_menu(Some(menu))?;
     }
     Ok(())
+}
+
+fn format_screenshot_count(count: u64) -> String {
+    format!("Screenshots captured: {count}")
 }
 
 fn format_hotkey_for_menu(hotkey: &str) -> String {
@@ -198,4 +226,13 @@ fn open_url_with_app(app: &AppHandle, url: &str) -> Result<(), Box<dyn std::erro
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::format_screenshot_count;
 
+    #[test]
+    fn formats_screenshot_count_for_tray() {
+        assert_eq!(format_screenshot_count(0), "Screenshots captured: 0");
+        assert_eq!(format_screenshot_count(42), "Screenshots captured: 42");
+    }
+}
