@@ -73,13 +73,25 @@ Run Snipp in development mode:
 npm run tauri:dev
 ```
 
-Create a production build:
+Create a production build without installing it:
 
 ```bash
 npm run tauri:build
 ```
 
 Build artifacts are written under `src-tauri/target/release/bundle/`.
+
+To build and install the same release-mode app contained in the DMG, first quit
+any running copy of Snipp, then run:
+
+```bash
+npm run tauri:install
+```
+
+This replaces `/Applications/Snipp.app` and removes the obsolete
+`/Applications/Snipp-Debug.app` created by older development scripts. Use
+`npm run tauri:dev` for development; use `npm run tauri:install` when testing
+the locally installed production app.
 
 ## Editor view
 
