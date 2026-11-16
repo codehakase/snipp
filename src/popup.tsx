@@ -33,10 +33,14 @@ function PopupApp() {
     closePopup,
   } = useScreenshot();
 
-  const [dragFilePath, setDragFilePath] = useState<string | null>(null);
+  const [dragFile, setDragFile] = useState<{ timestamp: number; path: string } | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const hadScreenshotsRef = useRef(false);
   const isShelfOpen = isExpanded && screenshots.length > 1;
+  // Reject the previous capture's path immediately, before effects run.
+  const dragFilePath = !isBatchRunning && dragFile?.timestamp === currentScreenshot?.timestamp
+    ? dragFile?.path
+    : undefined;
 
   useEffect(() => {
     if (screenshots.length > 0) {
@@ -53,8 +57,8 @@ function PopupApp() {
   // Skip drag files during Save all / Clear all: each capture is selected only
   // briefly before it leaves the shelf.
   useEffect(() => {
+    setDragFile(null);
     if (!currentScreenshot || isBatchRunning) {
-      setDragFilePath(null);
       return;
     }
 
@@ -68,7 +72,7 @@ function PopupApp() {
           return;
         }
         filePrepared = true;
-        setDragFilePath(path);
+        setDragFile({ timestamp: currentScreenshot.timestamp, path });
       } catch (prepareError) {
         console.error('Failed to prepare drag file:', prepareError);
       }
@@ -228,7 +232,7 @@ function PopupApp() {
         <ScreenshotPreview
           className="absolute bottom-2 left-0 z-20"
           imageUrl={getImageUrl(currentScreenshot)}
-          dragFilePath={dragFilePath ?? undefined}
+          dragFilePath={dragFilePath}
           onSave={() => saveScreenshot()}
           onCopy={() => copyScreenshot()}
           onDelete={() => deleteScreenshot()}
