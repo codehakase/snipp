@@ -11,6 +11,37 @@ use chrono::{Local, TimeZone};
 
 type ScreenshotCache = Mutex<HashMap<String, Vec<u8>>>;
 static SCREENSHOT_CACHE: std::sync::OnceLock<ScreenshotCache> = std::sync::OnceLock::new();
+const MAX_CACHE_ENTRIES: usize = 50;
+
+/// Inserts a capture; when full, first evicts the oldest entry (smallest
+/// timestamp key). Returns the evicted timestamp so the popup can drop it too.
+fn insert_with_fifo_eviction(
+    cache: &mut HashMap<String, Vec<u8>>,
+    key: String,
+    data: Vec<u8>,
+) -> Option<u64> {
+    let mut evicted = None;
+    if cache.len() >= MAX_CACHE_ENTRIES {
+        if let Some(oldest_key) = cache
+            .keys()
+            .min_by_key(|k| k.parse::<u64>().unwrap_or(u64::MAX))
+            .cloned()
+        {
+            cache.remove(&oldest_key);
+            evicted = oldest_key.parse::<u64>().ok();
+        }
+    }
+    cache.insert(key, data);
+    evicted
+}
+
+/// True while the capture shelf holds captures the user has not handled.
+pub(crate) fn has_pending_captures() -> bool {
+    SCREENSHOT_CACHE
+        .get()
+        .and_then(|cache| cache.lock().ok().map(|guard| !guard.is_empty()))
+        .unwrap_or(false)
+}
 
 mod config;
 mod history;
@@ -148,23 +179,26 @@ async fn capture(
 
     let cache_key = timestamp.to_string();
     let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
-    {
-        const MAX_CACHE_ENTRIES: usize = 50;
+    let evicted = {
         let mut cache_guard = cache.lock().unwrap();
-        // Cap the cache: when full, evict the oldest entry (smallest timestamp
-        // key) before inserting the new one (FIFO).
-        if cache_guard.len() >= MAX_CACHE_ENTRIES {
-            if let Some(oldest_key) = cache_guard
-                .keys()
-                .min_by_key(|k| k.parse::<u64>().unwrap_or(u64::MAX))
-                .cloned()
-            {
-                cache_guard.remove(&oldest_key);
-                log::debug!("Cache at capacity, evicted oldest entry: {}", oldest_key);
+        let evicted =
+            insert_with_fifo_eviction(&mut cache_guard, cache_key.clone(), image_data.clone());
+        log::debug!("Stored image in memory cache with key: {}", cache_key);
+        evicted
+    };
+
+    // Keep the popup's shelf in step with the cache, so it never lists a
+    // capture whose bytes are gone.
+    if let Some(evicted_timestamp) = evicted {
+        log::debug!(
+            "Cache at capacity, evicted oldest entry: {}",
+            evicted_timestamp
+        );
+        if let Some(popup_window) = app_handle.get_webview_window("popup") {
+            if let Err(e) = popup_window.emit("screenshot-evicted", evicted_timestamp) {
+                log::error!("Failed to emit screenshot eviction: {}", e);
             }
         }
-        cache_guard.insert(cache_key.clone(), image_data.clone());
-        log::debug!("Stored image in memory cache with key: {}", cache_key);
     }
 
     if auto_copy {
@@ -224,8 +258,8 @@ async fn wait_for_window_ready(window: &tauri::WebviewWindow, ready_event: &str)
 async fn show_popup_window(app_handle: &AppHandle, screenshot_data: &ScreenshotData) -> Result<(), String> {
     log::debug!("Showing popup window for screenshot: {}", screenshot_data.filename);
 
-    let popup_width = 320.0;
-    let popup_height = 220.0;
+    let popup_width = 340.0;
+    let popup_height = 360.0;
     let padding = 20.0;
 
     let (x_position, y_position) = if let Some(monitor) = app_handle.primary_monitor().ok().flatten() {
@@ -317,6 +351,14 @@ async fn copy_to_clipboard(
 
     write_png_bytes_to_clipboard(&app_handle, &image_data)?;
     log::debug!("Successfully copied screenshot to clipboard");
+
+    // Copying finishes a capture, like saving: drop it from the shelf cache.
+    {
+        let cache = SCREENSHOT_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+        let mut cache_guard = cache.lock().unwrap();
+        cache_guard.remove(&cache_key);
+        log::debug!("Evicted screenshot from memory cache after copy");
+    }
     Ok(())
 }
 
@@ -390,12 +432,8 @@ async fn delete_from_memory(timestamp: u64) -> Result<(), String> {
 
 #[tauri::command]
 async fn close_popup_window(app_handle: AppHandle) -> Result<(), String> {
-    // Evict any cached screenshots: callers that still need the data (editor,
-    // save, delete) have already read or removed their specific entry by now.
-    if let Some(cache) = SCREENSHOT_CACHE.get() {
-        cache.lock().unwrap().clear();
-    }
-    // Hide rather than close so the WebView stays warm for the next capture.
+    // Hiding is non-destructive: pending captures remain available in the shelf
+    // until the user saves or explicitly deletes them.
     if let Some(popup_window) = app_handle.get_webview_window("popup") {
         popup_window.hide()
             .map_err(|e| format!("Failed to hide popup: {}", e))?;
@@ -947,55 +985,42 @@ mod tests {
         let test_key = "test_timestamp".to_string();
         let test_data = vec![1, 2, 3, 4, 5];
 
-        // Hold the lock for the whole insert/read/clear sequence so this test
-        // can't interleave with other tests that share the global cache (the
-        // clear() below would otherwise wipe their entries mid-run).
+        // Hold the lock for the whole insert/read/remove sequence so this test
+        // cannot interleave with other tests that share the global cache.
         let mut cache_guard = cache.lock().unwrap();
 
         cache_guard.insert(test_key.clone(), test_data.clone());
         assert_eq!(cache_guard.get(&test_key).cloned(), Some(test_data));
 
-        // close_popup_window clears the whole cache; verify that empties it.
-        cache_guard.clear();
-        assert!(cache_guard.is_empty());
+        cache_guard.remove(&test_key);
         assert!(cache_guard.get(&test_key).is_none());
     }
 
     #[test]
     fn test_cache_fifo_eviction_at_capacity() {
-        const MAX_CACHE_ENTRIES: usize = 50;
-
         // Use a private map so this test is independent of the shared global
-        // cache state, then exercise the same FIFO logic capture() uses.
+        // cache state; capture() uses the same helper on the global cache.
         let mut map: HashMap<String, Vec<u8>> = HashMap::new();
 
-        // Fill to capacity with sequential timestamp keys.
+        // Fill to capacity with sequential timestamp keys; nothing is evicted.
         let base: u64 = 1_700_000_000_000;
         for i in 0..MAX_CACHE_ENTRIES as u64 {
-            map.insert((base + i).to_string(), vec![i as u8]);
+            let evicted =
+                insert_with_fifo_eviction(&mut map, (base + i).to_string(), vec![i as u8]);
+            assert_eq!(evicted, None);
         }
         assert_eq!(map.len(), MAX_CACHE_ENTRIES);
 
-        let oldest_key = base.to_string();
-        assert!(map.contains_key(&oldest_key));
-
-        // Insert beyond capacity, evicting the oldest (smallest timestamp) first.
-        for i in MAX_CACHE_ENTRIES as u64..(MAX_CACHE_ENTRIES as u64 + 5) {
-            if map.len() >= MAX_CACHE_ENTRIES {
-                let oldest = map
-                    .keys()
-                    .min_by_key(|k| k.parse::<u64>().unwrap_or(u64::MAX))
-                    .cloned()
-                    .unwrap();
-                map.remove(&oldest);
-            }
-            map.insert((base + i).to_string(), vec![i as u8]);
+        // Each insert beyond capacity evicts and reports the oldest timestamp.
+        for i in 0..5u64 {
+            let key = (base + MAX_CACHE_ENTRIES as u64 + i).to_string();
+            let evicted = insert_with_fifo_eviction(&mut map, key, vec![0]);
+            assert_eq!(evicted, Some(base + i));
+            assert!(!map.contains_key(&(base + i).to_string()));
         }
 
-        // Never exceeds the cap, and the original oldest entry is gone.
+        // Never exceeds the cap, and the newest entry is present.
         assert_eq!(map.len(), MAX_CACHE_ENTRIES);
-        assert!(!map.contains_key(&oldest_key));
-        // Newest entry is present.
         assert!(map.contains_key(&(base + MAX_CACHE_ENTRIES as u64 + 4).to_string()));
     }
 

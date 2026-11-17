@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 use tauri::{
-    AppHandle, Manager,
+    AppHandle, Emitter, Manager,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
     image::Image,
@@ -40,6 +40,13 @@ pub fn create_tray_menu(
         true,
         Some(capture_area_hotkey),
     )?;
+    let show_capture_shelf = MenuItem::with_id(
+        app,
+        "show_capture_shelf",
+        "Show Capture Shelf",
+        true,
+        None::<&str>,
+    )?;
     let screenshot_count = MenuItem::with_id(
         app,
         "screenshot_count",
@@ -58,6 +65,7 @@ pub fn create_tray_menu(
         &separator1,
         &capture_screen,
         &capture_area,
+        &show_capture_shelf,
         &screenshot_count,
         &separator2,
         &suggest_feature,
@@ -109,6 +117,11 @@ pub fn setup_system_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Erro
                 "capture_area" => {
                     if let Err(e) = trigger_area_capture(app) {
                         log::error!("Failed to trigger area capture: {}", e);
+                    }
+                }
+                "show_capture_shelf" => {
+                    if let Err(e) = show_capture_shelf_window(app) {
+                        log::error!("Failed to show capture shelf: {}", e);
                     }
                 }
                 "suggest_feature" => {
@@ -186,6 +199,22 @@ fn show_main_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
         window.show()?;
         window.set_focus()?;
         window.center()?;
+    }
+    Ok(())
+}
+
+fn show_capture_shelf_window(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+    // An empty shelf renders nothing, so showing it would leave an invisible
+    // always-on-top window on screen.
+    if !crate::has_pending_captures() {
+        log::debug!("Capture shelf is empty; nothing to show");
+        return Ok(());
+    }
+    if let Some(window) = app.get_webview_window("popup") {
+        // Lets the popup restart its auto-dismiss timer.
+        window.emit("capture-shelf-shown", ())?;
+        window.show()?;
+        let _ = window.set_focus();
     }
     Ok(())
 }

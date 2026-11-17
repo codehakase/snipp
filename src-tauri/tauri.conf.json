@@ -24,8 +24,8 @@
       {
         "label": "popup",
         "title": "Screenshot Preview",
-        "width": 320,
-        "height": 220,
+        "width": 340,
+        "height": 360,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,

@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { Trash2, Pencil } from 'lucide-react';
 import { cn, debugLog } from '@/lib/utils';
-import { useScreenshot } from '@/hooks/useScreenshot';
 import { startDrag } from '@crabnebula/tauri-plugin-drag';
 
 interface ScreenshotPreviewProps {
@@ -11,6 +10,7 @@ interface ScreenshotPreviewProps {
   onCopy?: () => void;
   onDelete?: () => void;
   onEdit?: () => void;
+  isLoading?: boolean;
   className?: string;
 }
 
@@ -21,11 +21,11 @@ export function ScreenshotPreview({
   onCopy,
   onDelete,
   onEdit,
+  isLoading = false,
   className
 }: ScreenshotPreviewProps) {
   const [showActions, setShowActions] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const { isLoading } = useScreenshot();
 
   const DRAG_THRESHOLD = 5;
   const dragStateRef = useRef<{ startX: number; startY: number; pending: boolean } | null>(null);
@@ -69,6 +69,7 @@ export function ScreenshotPreview({
   return (
     <div className={className}>
       <div
+        data-testid="screenshot-preview"
         className="relative w-[176px] h-[160px] rounded-2xl overflow-hidden shadow-2xl group animate-in zoom-in-95 fade-in duration-200"
         style={{ WebkitUserDrag: 'none' } as React.CSSProperties}
         onPointerDown={handlePointerDown}
@@ -81,7 +82,7 @@ export function ScreenshotPreview({
         {/* Delete button - top right */}
         <button
           onClick={onDelete}
-          disabled={isDragging}
+          disabled={isLoading || isDragging}
           className="absolute top-2 right-2 z-20 w-7 h-7 flex items-center justify-center rounded-full bg-white border border-black hover:bg-red-50 hover:border-red-500 hover:scale-110 transition-all duration-200 disabled:opacity-50"
           aria-label="Delete screenshot"
           title="Delete"

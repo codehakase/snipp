@@ -46,6 +46,8 @@ export interface TauriCommand {
 
 export interface TauriEvent {
   'screenshot-data': ScreenshotData;
+  'screenshot-evicted': number;
+  'capture-shelf-shown': null;
   'editor-data': EditorData;
   'screenshot-saved': { path: string };
   'screenshot-copied': {};
